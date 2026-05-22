@@ -1,0 +1,10 @@
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Playwright screenshots
+*.png

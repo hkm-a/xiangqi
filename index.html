@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>中國象棋</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="game-container">
+    <!-- 棋盘区 -->
+    <div class="board-wrapper">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <!-- 侧边面板 -->
+    <div class="side-panel">
+      <div class="glass-panel">
+        <div class="game-title">中 國 象 棋</div>
+      </div>
+
+      <!-- 模式选择 -->
+      <div class="glass-panel">
+        <div style="font-size:13px;color:#888;margin-bottom:8px;text-align:center;">游戏模式</div>
+        <div class="mode-selector">
+          <button class="mode-btn" data-mode="pvp">👤 双人对战</button>
+          <button class="mode-btn" data-mode="ai" data-ai-color="black">🤖 AI 对战</button>
+        </div>
+        <div class="difficulty-selector" style="margin-top:8px;">
+          <button class="diff-btn" data-diff="1">简单</button>
+          <button class="diff-btn active" data-diff="2">中等</button>
+          <button class="diff-btn" data-diff="3">困难</button>
+        </div>
+      </div>
+
+      <!-- 回合 & 状态 -->
+      <div class="glass-panel">
+        <div class="turn-indicator">
+          <span class="turn-dot" id="turnDot"></span>
+          <span id="turnLabel">红方走棋</span>
+        </div>
+        <div class="status-msg" id="statusMsg">点击棋子开始</div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="glass-panel">
+        <div class="btn-group">
+          <button class="btn primary" id="btnNewGame">🔄 新游戏</button>
+          <button class="btn" id="btnUndo">↩ 悔棋</button>
+        </div>
+      </div>
+
+      <!-- 被吃棋子 -->
+      <div class="glass-panel">
+        <div class="capture-display">
+          <div class="capture-group">
+            <span class="capture-label">红方失:</span>
+            <span id="capturedRed"></span>
+          </div>
+          <div class="capture-group">
+            <span class="capture-label">黑方失:</span>
+            <span id="capturedBlack"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 走法记录 -->
+      <div class="glass-panel" style="flex:1;">
+        <div style="font-size:13px;color:#888;margin-bottom:6px;text-align:center;">走法记录</div>
+        <div class="move-history" id="moveHistory">
+          <div style="color:#666;text-align:center;font-size:12px;">等待开始...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 使用 ES Module -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
