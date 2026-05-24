@@ -1,322 +1,389 @@
 // ============================================================
-// 象棋 - 主控制器（交互、UI 绑定、游戏循环）
+// 象棋 - 主控制器（AI 对弈 + AI 提示）
 // ============================================================
 import { RED, BLACK, PIECE_CHARS, CANVAS_W, CANVAS_H } from './constants.js'
 import { Game } from './game.js'
 import { Renderer } from './renderer.js'
-import { findBestMove } from './ai.js'
+import { findBestMove, resetTT } from './ai.js'
+import { sound } from './sound.js'
+import { START_FEN } from './fen.js'
 
-// ─── DOM 引用 ─────────────────────────────────────────
+// ─── DOM ───────────────────────────────────────────────
 
-const canvas = document.getElementById('gameCanvas')
-const turnDot = document.getElementById('turnDot')
-const turnLabel = document.getElementById('turnLabel')
-const statusMsg = document.getElementById('statusMsg')
-const moveHistory = document.getElementById('moveHistory')
-const capturedRed = document.getElementById('capturedRed')
-const capturedBlack = document.getElementById('capturedBlack')
-const btnNewGame = document.getElementById('btnNewGame')
-const btnUndo = document.getElementById('btnUndo')
+const $ = (id) => document.getElementById(id)
 
-const modeBtns = document.querySelectorAll('.mode-btn')
+const canvas = $('gameCanvas')
+const turnDot = $('turnDot')
+const turnLabel = $('turnLabel')
+const statusText = $('statusText')
+const moveHistory = $('moveHistory')
+const capturedRed = $('capturedRed')
+const capturedBlack = $('capturedBlack')
 const diffBtns = document.querySelectorAll('.diff-btn')
+const hintMove = $('hintMove')
+const hintEvalFill = $('hintEvalFill')
+const hintEvalScore = $('hintEvalScore')
+const hintRefresh = $('hintRefresh')
+const aiThinking = $('aiThinking')
+const aiThinkingBar = $('aiThinkingBar')
 
-// ─── 游戏状态 ─────────────────────────────────────────
+// ─── State ─────────────────────────────────────────────
 
 const game = new Game()
 const renderer = new Renderer(canvas)
+game.aiMode = true
+game.aiColor = BLACK
+
 let gameOver = false
 let animating = false
+let hintResult = null
+let hintComputing = false
 
-// ─── AI 相关 ──────────────────────────────────────────
+const SAVE_KEY = 'xiangqi_save'
+
+// ─── AI Worker ─────────────────────────────────────────
+
+let aiWorker = null
+
+function getAIWorker() {
+  if (aiWorker) return aiWorker
+  try {
+    aiWorker = new Worker(new URL('./ai-worker.js', import.meta.url), { type: 'module' })
+    aiWorker.onmessage = handleWorkerMessage
+    aiWorker.onerror = () => { console.warn('[AI] worker error, fallback'); runAIFallback() }
+  } catch (e) { console.warn('[AI] worker unavailable:', e.message) }
+  return aiWorker
+}
+
+function handleWorkerMessage(e) {
+  const { type, data } = e.data
+  if (type === 'result') {
+    game.aiThinking = false
+    if (data?.fromRow !== undefined) executeAIMove(data)
+    hideAIProgress()
+  } else if (type === 'progress') {
+    showAIProgress(data)
+  } else if (type === 'error') {
+    console.error('[AI Worker]', data?.message)
+    game.aiThinking = false; hideAIProgress(); runAIFallback()
+  }
+}
+
+function runAIFallback() {
+  if (!game.aiThinking || !isAITurn()) return
+  setTimeout(() => {
+    const r = findBestMove(game.board, game.turn, getDifficulty())
+    game.aiThinking = false; hideAIProgress()
+    if (r) executeAIMove(r); else updateUI()
+  }, 50)
+}
+
+function showAIProgress(d) {
+  aiThinking.style.display = 'flex'
+  if (aiThinkingBar && d) aiThinkingBar.style.width = Math.min(100, (d.depth / 6) * 100) + '%'
+}
+
+function hideAIProgress() {
+  aiThinking.style.display = 'none'
+  if (aiThinkingBar) aiThinkingBar.style.width = '0%'
+}
+
+// ─── AI ────────────────────────────────────────────────
 
 function isAITurn() {
-  if (!game.aiMode) return false
-  if (game.aiThinking) return false
-  return game.turn === game.aiColor
+  return game.aiMode && !game.aiThinking && game.turn === game.aiColor && !gameOver
+}
+
+function getDifficulty() {
+  return parseInt(document.querySelector('.diff-btn.active')?.dataset?.diff || '2', 10)
 }
 
 function triggerAI() {
-  if (gameOver || animating) return
-  if (!isAITurn()) return
-  if (game.status === 'checkmate' || game.status === 'stalemate') return
+  if (gameOver || animating || !isAITurn() || game.status === 'checkmate' || game.status === 'stalemate') return
+  game.aiThinking = true; updateUI()
 
-  game.aiThinking = true
-  updateUI()
+  const difficulty = getDifficulty()
+  const worker = getAIWorker()
+  if (worker) {
+    worker.postMessage({ type: 'findBestMove', data: { fen: game.toFEN(), color: game.turn, difficulty } })
+  } else {
+    setTimeout(() => {
+      const r = findBestMove(game.board, game.turn, difficulty, p => showAIProgress(p))
+      game.aiThinking = false; hideAIProgress()
+      if (r) executeAIMove(r); else updateUI()
+    }, 50)
+  }
+}
 
-  // 使用 setTimeout 让 UI 先更新再计算
+function executeAIMove(r) {
+  const captured = game.board[r.toRow][r.toCol]
+  animating = true
+  renderer.startAnim(r.fromRow, r.fromCol, r.toRow, r.toCol, game.board[r.fromRow][r.fromCol])
+  if (captured) { renderer.triggerCaptureFlash(r.toRow, r.toCol); if (isSoundEnabled()) sound.playCapture() }
+  else { if (isSoundEnabled()) sound.playMove() }
+  game.aiMove(r.fromRow, r.fromCol, r.toRow, r.toCol)
   setTimeout(() => {
-    const difficultyEl = document.querySelector('.diff-btn.active')
-    const difficulty = parseInt(difficultyEl?.dataset?.diff || '2', 10)
-
-    const result = findBestMove(game.board, game.turn, difficulty)
-
-    if (result) {
-      const captured = game.board[result.toRow][result.toCol]
-      animating = true
-      renderer.startAnim(result.fromRow, result.fromCol, result.toRow, result.toCol,
-        game.board[result.fromRow][result.fromCol])
-      if (captured) {
-        renderer.triggerCaptureFlash(result.toRow, result.toCol)
-      }
-
-      game.aiMove(result.fromRow, result.fromCol, result.toRow, result.toCol)
-
-      // 动画结束后再检查
-      setTimeout(() => {
-        animating = false
-        game.aiThinking = false
-        updateUI()
-        checkGameEnd()
-
-        // AI 连续走（如果 AI 走后还是 AI 回合，但正常情况下不会发生）
-        if (isAITurn() && !gameOver) {
-          triggerAI()
-        }
-      }, 200)
-    } else {
-      game.aiThinking = false
-      updateUI()
+    animating = false; updateUI()
+    if (isSoundEnabled() && game.status === 'check') sound.playCheck()
+    autoSave()
+    if (!checkGameEnd()) {
+      if (isAITurn() && !gameOver) triggerAI(); else scheduleHint()
     }
+  }, 200)
+}
+
+// ─── AI Hint ───────────────────────────────────────────
+
+function scheduleHint() {
+  if (gameOver || game.status !== 'playing') return
+  hintResult = null; updateHintUI()
+  setTimeout(computeHint, 300)
+}
+
+function computeHint() {
+  if (hintComputing || gameOver) return
+  hintComputing = true; hintRefresh.disabled = true
+  setTimeout(() => {
+    try {
+      const r = findBestMove(game.board, game.turn, getDifficulty())
+      if (r?.fromRow !== undefined) {
+        const p = game.board[r.fromRow][r.fromCol]
+        r.pChar = p ? PIECE_CHARS[p.color][p.type] : '?'
+        hintResult = r
+      }
+    } catch (e) { console.warn('[Hint]', e) }
+    hintComputing = false; hintRefresh.disabled = false; updateHintUI()
   }, 50)
+}
+
+/** 将坐标转为中文字典式走法 (与 game.getMoveText 格式一致) */
+function formatMove(row, col) {
+  return '一二三四五六七八九'[col] + '一二三四五六七八九'[9 - row]
+}
+
+function updateHintUI() {
+  if (!hintResult) {
+    hintMove.textContent = '—'
+    hintEvalFill.style.width = '50%'; hintEvalFill.className = 'hint-eval-fill'
+    hintEvalScore.textContent = '0.00'
+    return
+  }
+  const { fromRow, fromCol, toRow, toCol, pChar, score } = hintResult
+  const from = formatMove(fromRow, fromCol)
+  const to = formatMove(toRow, toCol)
+  hintMove.textContent = `${pChar} ${from} → ${to}`
+
+  const isRed = game.turn === RED
+  const disp = isRed ? score : -score
+  const clamped = Math.max(-500, Math.min(500, disp))
+  hintEvalFill.style.width = `${Math.max(2, Math.min(98, ((clamped + 500) / 1000) * 100))}%`
+
+  if (disp > 0.5) { hintEvalFill.className = 'hint-eval-fill red'; hintEvalScore.className = 'hint-eval-score red' }
+  else if (disp < -0.5) { hintEvalFill.className = 'hint-eval-fill black'; hintEvalScore.className = 'hint-eval-score black' }
+  else { hintEvalFill.className = 'hint-eval-fill'; hintEvalScore.className = 'hint-eval-score' }
+
+  if (Math.abs(score) >= 90000) {
+    hintEvalScore.textContent = score > 0 ? (isRed ? '将杀' : '被将杀') : (isRed ? '被将杀' : '将杀')
+  } else {
+    hintEvalScore.textContent = (score / 100).toFixed(2)
+  }
+}
+
+hintRefresh.addEventListener('click', computeHint)
+
+// ─── Player Move ───────────────────────────────────────
+
+function executeMove(fromRow, fromCol, toRow, toCol) {
+  const movingPiece = game.board[fromRow][fromCol]
+  const targetPiece = game.board[toRow][toCol]
+  game.selected = null
+  if (!game.tryMove(fromRow, fromCol, toRow, toCol)) { updateUI(); return }
+
+  animating = true
+  renderer.startAnim(fromRow, fromCol, toRow, toCol, movingPiece)
+  if (targetPiece) { renderer.triggerCaptureFlash(toRow, toCol); if (isSoundEnabled()) sound.playCapture() }
+  else { if (isSoundEnabled()) sound.playMove() }
+
+  setTimeout(() => {
+    animating = false; updateUI()
+    if (isSoundEnabled() && game.status === 'check') sound.playCheck()
+    autoSave()
+    if (!checkGameEnd()) {
+      if (isAITurn() && !gameOver) triggerAI(); else scheduleHint()
+    }
+  }, 200)
 }
 
 function checkGameEnd() {
   if (game.status === 'checkmate') {
-    const winner = game.turn === RED ? '黑方' : '红方'
-    statusMsg.textContent = `🏆 ${winner}胜！将杀！`
-    statusMsg.className = 'status-msg checkmate'
-    gameOver = true
-    return true
+    statusText.textContent = `🏆 ${game.turn === RED ? '黑方' : '红方'}胜！将杀！`
+    statusText.className = 'status-text checkmate'; gameOver = true
+    if (isSoundEnabled()) sound.playWin(); return true
   }
   if (game.status === 'stalemate') {
-    const winner = game.turn === RED ? '黑方' : '红方'
-    statusMsg.textContent = `🏆 ${winner}胜！困毙！`
-    statusMsg.className = 'status-msg checkmate'
-    gameOver = true
-    return true
+    statusText.textContent = `🏆 ${game.turn === RED ? '黑方' : '红方'}胜！困毙！`
+    statusText.className = 'status-text checkmate'; gameOver = true
+    if (isSoundEnabled()) sound.playWin(); return true
+  }
+  if (game.status === 'draw') {
+    statusText.textContent = '🤝 和棋！'
+    statusText.className = 'status-text'; gameOver = true; return true
   }
   return false
 }
 
-// ─── 点击事件 ─────────────────────────────────────────
+// ─── Canvas Click ──────────────────────────────────────
+
+function getCanvasPos(cx, cy) {
+  const r = canvas.getBoundingClientRect()
+  return { x: (cx - r.left) * (CANVAS_W / r.width), y: (cy - r.top) * (CANVAS_H / r.height) }
+}
 
 canvas.addEventListener('click', (e) => {
-  if (gameOver || animating || game.aiThinking) return
-  if (isAITurn()) return
+  if (gameOver || animating || game.aiThinking || isAITurn()) return
+  const p = getCanvasPos(e.clientX, e.clientY)
+  const b = renderer.toBoard(p.x, p.y)
+  if (!b) return
 
-  const rect = canvas.getBoundingClientRect()
-  // dpr 适配：canvas.width 是 CANVAS_W * dpr，鼠标坐标需要映射回逻辑坐标系
-  const logicalX = (e.clientX - rect.left) * (CANVAS_W / rect.width)
-  const logicalY = (e.clientY - rect.top) * (CANVAS_H / rect.height)
-  const pos = renderer.toBoard(logicalX, logicalY)
-  if (!pos) return
+  let row = b.row, col = b.col
+  if (game.flipped) { row = 9 - row; col = 8 - col }
 
-  const { row, col } = pos
-  const clickedPiece = game.board[row][col]
+  const clicked = game.board[row][col]
 
-  // 如果已选中棋子
   if (game.selected) {
-    // 点击了同一个棋子 -> 取消选中
-    if (game.selected.row === row && game.selected.col === col) {
-      game.selected = null
-      updateUI()
-      return
-    }
-
-    // 点击了己方另一个棋子 -> 切换选中
-    if (clickedPiece && clickedPiece.color === game.turn) {
-      game.selected = { row, col }
-      updateUI()
-      return
-    }
-
-    // 尝试走棋（先保存 selected 引用，因为 tryMove 内部会置 null）
-    const selRow = game.selected.row
-    const selCol = game.selected.col
-    const movingPiece = game.board[selRow][selCol]
-    const targetPiece = game.board[row][col]
-    const result = game.tryMove(selRow, selCol, row, col)
-    if (result) {
-      animating = true
-      renderer.startAnim(selRow, selCol, row, col, movingPiece)
-      // 如果有吃子，触发闪光效果
-      if (targetPiece) {
-        renderer.triggerCaptureFlash(row, col)
-      }
-
-      setTimeout(() => {
-        animating = false
-        updateUI()
-        if (!checkGameEnd()) {
-          // AI 回合
-          if (isAITurn()) {
-            triggerAI()
-          }
-        }
-      }, 200)
-    } else {
-      // 非法走法
-      game.selected = null
-      updateUI()
-    }
-    return
+    if (game.selected.row === row && game.selected.col === col) { game.selected = null; updateUI(); return }
+    if (clicked && clicked.color === game.turn) { game.selected = { row, col }; if (isSoundEnabled()) sound.playSelect(); updateUI(); return }
+    executeMove(game.selected.row, game.selected.col, row, col); return
   }
-
-  // 未选中 -> 选中己方棋子
-  if (clickedPiece && clickedPiece.color === game.turn) {
-    game.selected = { row, col }
-    updateUI()
-  }
+  if (clicked && clicked.color === game.turn) { game.selected = { row, col }; if (isSoundEnabled()) sound.playSelect(); updateUI() }
 })
 
-// ─── UI 更新 ──────────────────────────────────────────
+// ─── UI ────────────────────────────────────────────────
 
 function updateUI() {
-  const isRedTurn = game.turn === RED
-  turnDot.className = `turn-dot ${isRedTurn ? 'red' : 'black'}`
-  turnLabel.textContent = isRedTurn ? '红方走棋' : '黑方走棋'
+  const isRed = game.turn === RED
+  turnDot.className = `turn-dot ${isRed ? 'red' : 'black'}`
+  turnLabel.textContent = isRed ? '红方走棋' : '黑方走棋'
 
-  // 状态消息：将军 > 最近吃子 > AI思考 > 默认
-  if (game.status === 'check') {
-    statusMsg.textContent = '⚠️ 将军！'
-    statusMsg.className = 'status-msg check'
-  } else if (game.status === 'checkmate' || game.status === 'stalemate') {
-    // checkGameEnd 已经设置了消息，这里不动
-  } else if (game.aiThinking) {
-    statusMsg.textContent = '🤔 AI 思考中...'
-    statusMsg.className = 'status-msg'
-  } else if (game.history.length > 0) {
-    // 显示最近一步走法（如果有吃子，突出显示）
-    const last = game.history[game.history.length - 1]
-    const moveText = game.getMoveText(last)
+  if (game.status === 'check') { statusText.textContent = '⚠️ 将军！'; statusText.className = 'status-text check' }
+  else if (game.aiThinking) { statusText.textContent = '🤔 AI 思考中...'; statusText.className = 'status-text' }
+  else if (game.history.length > 0) {
+    const last = game.history.at(-1)
+    const mt = game.getMoveText(last)
     if (last.captured) {
-      const capChar = PIECE_CHARS[last.captured.color][last.captured.type]
-      statusMsg.textContent = `⚔️ ${moveText} 吃 ${capChar}`
-      statusMsg.className = 'status-msg check'
-      // 3 秒后恢复
-      setTimeout(() => {
-        if (statusMsg.classList.contains('check') &&
-            statusMsg.textContent.includes('吃')) {
-          statusMsg.textContent = isRedTurn ? '红方走棋' : '黑方走棋'
-          statusMsg.className = 'status-msg'
-        }
-      }, 2500)
-    } else {
-      statusMsg.textContent = moveText
-      statusMsg.className = 'status-msg'
-    }
-  } else {
-    statusMsg.textContent = '点击棋子开始'
-    statusMsg.className = 'status-msg'
-  }
+      statusText.innerHTML = `⚔️ ${mt} 吃 ${PIECE_CHARS[last.captured.color][last.captured.type]}`
+      statusText.className = 'status-text check'
+    } else { statusText.textContent = mt; statusText.className = 'status-text' }
+  } else { statusText.textContent = '点击棋子开始'; statusText.className = 'status-text' }
 
-  // 被吃棋子
   updateCaptured(capturedRed, game.capturedRed, RED)
   updateCaptured(capturedBlack, game.capturedBlack, BLACK)
-
-  // 走法历史
   renderMoveHistory()
-
-  // 棋盘重绘
   renderer.render(game, performance.now())
-
-  // 按钮状态
-  btnUndo.disabled = game.history.length === 0 || game.aiThinking
 }
 
 function updateCaptured(el, pieces, color) {
   if (!el) return
-  const textClass = color === RED ? 'red-text' : 'black-text'
-  el.innerHTML = pieces.map(p =>
-    `<span class="capture-piece ${textClass}">${PIECE_CHARS[p.color][p.type]}</span>`
-  ).join('')
+  el.innerHTML = pieces.map(p => `<span style="color:${color === RED ? '#c62828' : '#555'}">${PIECE_CHARS[p.color][p.type]}</span>`).join('')
 }
 
 function renderMoveHistory() {
   if (!moveHistory) return
-  const recent = game.history.slice(-20)
-  moveHistory.innerHTML = recent.map((m, i) => {
-    const num = game.history.length - recent.length + i + 1
-    const text = game.getMoveText(m)
-    return `<div class="move-entry"><span class="move-num">${num}.</span><span class="move-text">${text}</span></div>`
-  }).join('')
+  if (game.history.length === 0) { moveHistory.innerHTML = '<span class="history-empty">对局尚未开始</span>'; return }
+  moveHistory.innerHTML = game.history.map((m, i) =>
+    `<span class="history-move"><span class="num">${i + 1}.</span><span class="${m.piece?.color === RED ? 'red' : 'black'}">${game.getMoveText(m)}</span></span>`
+  ).join('')
   moveHistory.scrollTop = moveHistory.scrollHeight
 }
 
-// ─── 游戏循环 ─────────────────────────────────────────
+// ─── Sound ─────────────────────────────────────────────
 
-function gameLoop(now) {
-  renderer.render(game, now)
-  requestAnimationFrame(gameLoop)
+const SOUND_KEY = 'xiangqi_sound'
+
+function isSoundEnabled() { return localStorage.getItem(SOUND_KEY) !== 'off' }
+
+function toggleSound() {
+  const on = !isSoundEnabled()
+  localStorage.setItem(SOUND_KEY, on ? 'on' : 'off')
+  $('btnSound').textContent = on ? '🔊 音效' : '🔇 静音'
+  sound.setEnabled(on)
+  if (on) sound.playMove()
 }
 
-// ─── 按钮事件 ────────────────────────────────────────
+// ─── Persistence ───────────────────────────────────────
 
-btnNewGame.addEventListener('click', () => {
-  // 保留当前 mode 设置，在 reset 后恢复
-  const wasAiMode = game.aiMode
-  const wasAiColor = game.aiColor
-  game.reset()
-  game.aiMode = wasAiMode
-  game.aiColor = wasAiColor
-  gameOver = false
-  animating = false
-  game.aiThinking = false
-  updateUI()
+function autoSave() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ fen: game.toFEN(), difficulty: getDifficulty(), flipped: game.flipped })) }
+  catch { /* noop */ }
+}
 
-  // AI 先走（如果 AI 执红）
-  if (isAITurn()) {
-    setTimeout(triggerAI, 300)
-  }
-})
-
-btnUndo.addEventListener('click', () => {
-  if (game.aiThinking) return
-  game.undo()
-  gameOver = false
-  updateUI()
-})
-
-// 模式切换
-modeBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    // ⚠️ 必须先 reset 再设 aiMode，否则 reset 会覆盖
-    game.reset()
-    modeBtns.forEach(b => b.classList.remove('active'))
-    btn.classList.add('active')
-    const mode = btn.dataset.mode
-    game.aiMode = mode === 'ai'
-    game.aiColor = btn.dataset.aiColor || BLACK
+function tryRestore() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY)
+    if (!raw) return
+    const d = JSON.parse(raw)
+    if (!d.fen || d.fen === START_FEN) return
+    game.fromFEN(d.fen)
+    game.aiMode = true; game.aiColor = BLACK
+    game.aiDifficulty = d.difficulty || 2; game.flipped = !!d.flipped
     gameOver = false
-    animating = false
-    game.aiThinking = false
+    diffBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.diff || '2', 10) === game.aiDifficulty))
     updateUI()
+  } catch { /* noop */ }
+}
 
-    // 如果是 AI 模式且 AI 先走（执红）
-    if (isAITurn()) {
-      setTimeout(triggerAI, 300)
-    }
-  })
+// ─── Game Loop ─────────────────────────────────────────
+
+function gameLoop(now) { renderer.render(game, now); requestAnimationFrame(gameLoop) }
+
+// ─── Buttons ───────────────────────────────────────────
+
+$('btnNewGame').addEventListener('click', () => {
+  game.reset(); game.aiMode = true; game.aiColor = BLACK
+  gameOver = false; animating = false; game.aiThinking = false; game.selected = null
+  hintResult = null; updateHintUI(); statusText.className = 'status-text'
+  localStorage.removeItem(SAVE_KEY); updateUI()
+  if (isAITurn()) setTimeout(triggerAI, 300); else scheduleHint()
 })
 
-// 难度切换
+$('btnUndo').addEventListener('click', () => {
+  if (game.aiThinking || game.history.length === 0) return
+  for (let i = 0; i < 2; i++) if (game.history.length > 0) game.undo()
+  gameOver = false; game.selected = null; updateUI(); scheduleHint()
+})
+
+$('btnSound').addEventListener('click', toggleSound)
+
+// ─── Difficulty ────────────────────────────────────────
+
 diffBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     diffBtns.forEach(b => b.classList.remove('active'))
     btn.classList.add('active')
+    game.aiDifficulty = Math.min(3, Math.max(1, parseInt(btn.dataset?.diff || '2', 10)))
+    resetTT()
   })
 })
 
-// ─── 启动 ─────────────────────────────────────────────
+// ─── Keyboard ──────────────────────────────────────────
 
-// 默认选中双人模式
-document.querySelector('.mode-btn[data-mode="pvp"]')?.classList.add('active')
-document.querySelector('.diff-btn[data-diff="2"]')?.classList.add('active')
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); $('btnUndo').click() }
+})
 
-updateUI()
-// 默认：AI 关闭，双人模式，直接开始游戏循环
-requestAnimationFrame(gameLoop)
+// ─── Init ──────────────────────────────────────────────
 
-// 导出游戏对象（用于调试）
-window.__game = game
+function init() {
+  sound.setEnabled(isSoundEnabled())
+  $('btnSound').textContent = isSoundEnabled() ? '🔊 音效' : '🔇 静音'
+  tryRestore()
+  gameLoop(performance.now())
+  if (!gameOver) scheduleHint()
+  if (isAITurn()) setTimeout(triggerAI, 300)
+
+  const initAudio = () => { sound.init(); document.removeEventListener('click', initAudio); document.removeEventListener('touchstart', initAudio) }
+  document.addEventListener('click', initAudio, { once: true })
+  document.addEventListener('touchstart', initAudio, { once: true })
+}
+
+init()

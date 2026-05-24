@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="48" fill="#1a1a3e"/>
+  <circle cx="256" cy="220" r="100" fill="#d4a853" stroke="#8b3a3a" stroke-width="6"/>
+  <text x="256" y="246" font-size="120" font-weight="bold" text-anchor="middle" dominant-baseline="central" fill="#c62828" font-family="serif">帥</text>
+  <text x="256" y="380" font-size="40" text-anchor="middle" fill="#ffd700" font-family="sans-serif">中國象棋</text>
+</svg>

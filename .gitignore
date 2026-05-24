@@ -1,10 +1,5 @@
-# OS
-Thumbs.db
+node_modules/
+dist/
 .DS_Store
-
-# IDE
-.vscode/
-.idea/
-
-# Playwright screenshots
-*.png
+Thumbs.db
+*.local
