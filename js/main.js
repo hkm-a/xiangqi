@@ -136,7 +136,9 @@ function executeAIMove(r) {
 
 function scheduleHint() {
   if (gameOver || game.status !== 'playing') return
-  hintResult = null; updateHintUI()
+  hintResult = null
+  renderer.setHintMove(null)
+  updateHintUI()
   setTimeout(computeHint, 300)
 }
 
@@ -166,12 +168,15 @@ function updateHintUI() {
     hintMove.textContent = '—'
     hintEvalFill.style.width = '50%'; hintEvalFill.className = 'hint-eval-fill'
     hintEvalScore.textContent = '0.00'
+    renderer.setHintMove(null)
     return
   }
   const { fromRow, fromCol, toRow, toCol, pChar, score } = hintResult
   const from = formatMove(fromRow, fromCol)
   const to = formatMove(toRow, toCol)
   hintMove.textContent = `${pChar} ${from} → ${to}`
+  // 棋盘上画提示箭头（与侧栏文字同步）
+  renderer.setHintMove(hintResult)
 
   const isRed = game.turn === RED
   const disp = isRed ? score : -score
@@ -242,11 +247,12 @@ function getCanvasPos(cx, cy) {
 canvas.addEventListener('click', (e) => {
   if (gameOver || animating || game.aiThinking || isAITurn()) return
   const p = getCanvasPos(e.clientX, e.clientY)
+  // toBoard 已处理翻转，直接得到逻辑坐标
   const b = renderer.toBoard(p.x, p.y)
   if (!b) return
 
-  let row = b.row, col = b.col
-  if (game.flipped) { row = 9 - row; col = 8 - col }
+  const row = b.row
+  const col = b.col
 
   const clicked = game.board[row][col]
 

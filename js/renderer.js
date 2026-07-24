@@ -21,14 +21,34 @@ export class Renderer {
     // 动画状态
     this.animPiece = null
     this.animStart = null
-    this.animDuration = 180 // ms
+    this.animDuration = 220 // ms — 略放慢，走子更顺
 
     // 吃子闪光效果
     this.captureFlash = null // { row, col, start }
-    this.flashDuration = 300 // ms
+    this.flashDuration = 340 // ms
 
     // 拖拽状态
     this.draggedPiece = null // { piece, x, y, fromRow, fromCol, moves[] }
+
+    // AI 提示箭头（棋盘坐标，null 表示不画）
+    this.hintMove = null // { fromRow, fromCol, toRow, toCol }
+
+    // 当前是否翻转绘制（由 render 每帧同步）
+    this._flipped = false
+  }
+
+  /** 设置 / 清除 AI 推荐走法箭头 */
+  setHintMove(move) {
+    if (!move || move.fromRow === undefined) {
+      this.hintMove = null
+      return
+    }
+    this.hintMove = {
+      fromRow: move.fromRow,
+      fromCol: move.fromCol,
+      toRow: move.toRow,
+      toCol: move.toCol,
+    }
   }
 
   /** 触发吃子闪光 */
@@ -79,30 +99,40 @@ export class Renderer {
     this.animStart = performance.now()
   }
 
-  /** 获取棋子在画布上的坐标 */
+  /** 逻辑坐标 → 绘制坐标（含翻转） */
+  _displayRC(row, col) {
+    if (!this._flipped) return { row, col }
+    return { row: ROWS - 1 - row, col: COLS - 1 - col }
+  }
+
+  /** 获取棋子在画布上的坐标（逻辑棋盘坐标） */
   toCanvas(row, col) {
+    const d = this._displayRC(row, col)
     return {
-      x: PADDING + col * CELL_SIZE,
-      y: PADDING + row * CELL_SIZE,
+      x: PADDING + d.col * CELL_SIZE,
+      y: PADDING + d.row * CELL_SIZE,
     }
   }
 
-  /** 根据画布坐标获取棋盘位置 */
+  /** 根据画布坐标获取逻辑棋盘位置 */
   toBoard(x, y) {
-    const col = Math.round((x - PADDING) / CELL_SIZE)
-    const row = Math.round((y - PADDING) / CELL_SIZE)
-    if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return null
-    // 距离检查
-    const pos = this.toCanvas(row, col)
-    const dist = Math.hypot(x - pos.x, y - pos.y)
-    if (dist > CELL_SIZE * 0.6) return null
-    return { row, col }
+    const dispCol = Math.round((x - PADDING) / CELL_SIZE)
+    const dispRow = Math.round((y - PADDING) / CELL_SIZE)
+    if (dispRow < 0 || dispRow >= ROWS || dispCol < 0 || dispCol >= COLS) return null
+    const sx = PADDING + dispCol * CELL_SIZE
+    const sy = PADDING + dispRow * CELL_SIZE
+    if (Math.hypot(x - sx, y - sy) > CELL_SIZE * 0.6) return null
+    if (this._flipped) {
+      return { row: ROWS - 1 - dispRow, col: COLS - 1 - dispCol }
+    }
+    return { row: dispRow, col: dispCol }
   }
 
   /** 主渲染循环 */
   render(game, now) {
     const ctx = this.ctx
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
+    this._flipped = !!game.flipped
 
     this.drawBoard(ctx)
     this.drawGrid(ctx)
@@ -112,6 +142,9 @@ export class Renderer {
 
     // 绘制最后一步高亮
     this.drawLastMoveHighlight(ctx, game)
+
+    // AI 提示箭头（在棋子下方，不挡字）
+    this.drawHintArrow(ctx, now)
 
     // 动画更新
     let animPos = null
@@ -480,12 +513,17 @@ export class Renderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // 左：楚河
+    // 楚河汉界：翻面时对调左右，保持「己方视角」阅读习惯
     ctx.fillStyle = colors.riverText
-    ctx.fillText('楚  河', PADDING + 1.5 * CELL_SIZE, y)
-
-    // 右：漢界
-    ctx.fillText('漢  界', PADDING + 6.5 * CELL_SIZE, y)
+    const left = PADDING + 1.5 * CELL_SIZE
+    const right = PADDING + 6.5 * CELL_SIZE
+    if (this._flipped) {
+      ctx.fillText('漢  界', left, y)
+      ctx.fillText('楚  河', right, y)
+    } else {
+      ctx.fillText('楚  河', left, y)
+      ctx.fillText('漢  界', right, y)
+    }
 
     ctx.restore()
   }
@@ -495,27 +533,22 @@ export class Renderer {
     ctx.strokeStyle = colors.grid
     ctx.lineWidth = 1
 
-    // 黑方九宫格（上方）
-    const x1 = PADDING + 3 * CELL_SIZE
-    const x2 = PADDING + 5 * CELL_SIZE
-    const y0 = PADDING
-    const y2 = PADDING + 2 * CELL_SIZE
-    ctx.beginPath()
-    ctx.moveTo(x1, y0)
-    ctx.lineTo(x2, y2)
-    ctx.moveTo(x2, y0)
-    ctx.lineTo(x1, y2)
-    ctx.stroke()
-
-    // 红方九宫格（下方）
-    const y7 = PADDING + 7 * CELL_SIZE
-    const y9 = PADDING + 9 * CELL_SIZE
-    ctx.beginPath()
-    ctx.moveTo(x1, y7)
-    ctx.lineTo(x2, y9)
-    ctx.moveTo(x2, y7)
-    ctx.lineTo(x1, y9)
-    ctx.stroke()
+    // 用逻辑坐标画 X，翻转时跟着棋子走
+    const drawX = (r0, c0, r1, c1) => {
+      const a = this.toCanvas(r0, c0)
+      const b = this.toCanvas(r1, c1)
+      const c = this.toCanvas(r0, c1)
+      const d = this.toCanvas(r1, c0)
+      ctx.beginPath()
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+      ctx.moveTo(c.x, c.y)
+      ctx.lineTo(d.x, d.y)
+      ctx.stroke()
+    }
+    // 黑方九宫 (0-2, 3-5) · 红方九宫 (7-9, 3-5)
+    drawX(0, 3, 2, 5)
+    drawX(7, 3, 9, 5)
   }
 
   // ─── 棋子绘制 ─────────────────────────────────────
@@ -595,45 +628,125 @@ export class Renderer {
       ctx.fill()
     }
 
-    // 将军闪烁效果
+    // 将军闪烁：更醒目的红晕 + 双圈
     if (isCheck && now) {
-      const pulse = Math.sin(now / 180) * 0.5 + 0.5
+      const pulse = Math.sin(now / 160) * 0.5 + 0.5
       ctx.shadowBlur = 0
-      ctx.strokeStyle = `rgba(255, 30, 30, ${0.3 + pulse * 0.5})`
-      ctx.lineWidth = 2 + pulse * 2
+      ctx.strokeStyle = `rgba(255, 40, 40, ${0.45 + pulse * 0.5})`
+      ctx.lineWidth = 2.5 + pulse * 2
       ctx.beginPath()
-      ctx.arc(x, y, r + 3 + pulse * 4, 0, Math.PI * 2)
+      ctx.arc(x, y, r + 4 + pulse * 5, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.strokeStyle = `rgba(255, 120, 60, ${0.2 + pulse * 0.35})`
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(x, y, r + 10 + pulse * 6, 0, Math.PI * 2)
       ctx.stroke()
 
-      // 脉冲光晕
-      const pg = ctx.createRadialGradient(x, y, r, x, y, r + 20 + pulse * 15)
-      pg.addColorStop(0, `rgba(255, 0, 0, ${0.05 + pulse * 0.15})`)
+      const pg = ctx.createRadialGradient(x, y, r * 0.4, x, y, r + 26 + pulse * 12)
+      pg.addColorStop(0, `rgba(255, 40, 20, ${0.12 + pulse * 0.18})`)
       pg.addColorStop(1, 'rgba(255,0,0,0)')
       ctx.fillStyle = pg
       ctx.beginPath()
-      ctx.arc(x, y, r + 20 + pulse * 15, 0, Math.PI * 2)
+      ctx.arc(x, y, r + 26 + pulse * 12, 0, Math.PI * 2)
       ctx.fill()
     }
 
     ctx.restore()
   }
 
-  /** 最后一步高亮 */
+  /** 最后一步高亮 + 细箭头 */
   drawLastMoveHighlight(ctx, game) {
     if (!game.history || game.history.length === 0) return
     const last = game.history[game.history.length - 1]
     const fromPos = this.toCanvas(last.from.row, last.from.col)
     const toPos = this.toCanvas(last.to.row, last.to.col)
-    const sz = CELL_SIZE * 0.85
+    const sz = CELL_SIZE * 0.88
 
     ctx.save()
-    ctx.fillStyle = 'rgba(255, 215, 0, 0.12)'
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.16)'
     for (const p of [fromPos, toPos]) {
       ctx.beginPath()
-      ctx.roundRect(p.x - sz / 2, p.y - sz / 2, sz, sz, 4)
+      ctx.roundRect(p.x - sz / 2, p.y - sz / 2, sz, sz, 5)
       ctx.fill()
     }
+    // 落点描边更亮一点
+    ctx.strokeStyle = 'rgba(255, 200, 60, 0.35)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.roundRect(toPos.x - sz / 2, toPos.y - sz / 2, sz, sz, 5)
+    ctx.stroke()
+
+    this._drawBoardArrow(ctx, fromPos.x, fromPos.y, toPos.x, toPos.y, {
+      color: 'rgba(255, 190, 40, 0.55)',
+      width: 2.2,
+      head: 9,
+    })
     ctx.restore()
+  }
+
+  /** AI 提示箭头（青色，与最后一步金色区分） */
+  drawHintArrow(ctx, now) {
+    if (!this.hintMove) return
+    const { fromRow, fromCol, toRow, toCol } = this.hintMove
+    const from = this.toCanvas(fromRow, fromCol)
+    const to = this.toCanvas(toRow, toCol)
+    const pulse = now ? Math.sin(now / 280) * 0.5 + 0.5 : 0.5
+
+    ctx.save()
+    // 起终点浅圈
+    ctx.strokeStyle = `rgba(80, 200, 160, ${0.35 + pulse * 0.25})`
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(from.x, from.y, PIECE_RADIUS * 0.55, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(to.x, to.y, PIECE_RADIUS * 0.65, 0, Math.PI * 2)
+    ctx.stroke()
+
+    this._drawBoardArrow(ctx, from.x, from.y, to.x, to.y, {
+      color: `rgba(64, 200, 160, ${0.55 + pulse * 0.3})`,
+      width: 2.6,
+      head: 11,
+    })
+    ctx.restore()
+  }
+
+  /** 棋盘上画箭头（不挡中心，略缩短） */
+  _drawBoardArrow(ctx, x1, y1, x2, y2, opts = {}) {
+    const color = opts.color || 'rgba(255,200,60,0.5)'
+    const width = opts.width || 2
+    const head = opts.head || 10
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const len = Math.hypot(dx, dy)
+    if (len < 8) return
+    const ux = dx / len
+    const uy = dy / len
+    // 从棋子边缘出发/到达，避免箭头穿心
+    const pad = PIECE_RADIUS * 0.72
+    const sx = x1 + ux * pad
+    const sy = y1 + uy * pad
+    const ex = x2 - ux * pad
+    const ey = y2 - uy * pad
+
+    ctx.strokeStyle = color
+    ctx.fillStyle = color
+    ctx.lineWidth = width
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    ctx.moveTo(sx, sy)
+    ctx.lineTo(ex, ey)
+    ctx.stroke()
+
+    const angle = Math.atan2(ey - sy, ex - sx)
+    ctx.beginPath()
+    ctx.moveTo(ex, ey)
+    ctx.lineTo(ex - head * Math.cos(angle - 0.4), ey - head * Math.sin(angle - 0.4))
+    ctx.lineTo(ex - head * Math.cos(angle + 0.4), ey - head * Math.sin(angle + 0.4))
+    ctx.closePath()
+    ctx.fill()
   }
 
   /** 走法提示点 */
