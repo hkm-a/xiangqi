@@ -118,13 +118,20 @@ function triggerAI() {
 const ANIM_MS = 230 // 与 renderer.animDuration 对齐
 
 function executeAIMove(r) {
+  const moving = game.board[r.fromRow][r.fromCol]
   const captured = game.board[r.toRow][r.toCol]
   animating = true
   renderer.setHintMove(null)
-  renderer.startAnim(r.fromRow, r.fromCol, r.toRow, r.toCol, game.board[r.fromRow][r.fromCol])
-  if (captured) { renderer.triggerCaptureFlash(r.toRow, r.toCol); if (isSoundEnabled()) sound.playCapture() }
-  else { if (isSoundEnabled()) sound.playMove() }
+  renderer.startAnim(r.fromRow, r.fromCol, r.toRow, r.toCol, moving)
   game.aiMove(r.fromRow, r.fromCol, r.toRow, r.toCol)
+  const last = game.history.at(-1)
+  const moveText = last ? game.getMoveText(last) : ''
+  if (captured) {
+    renderer.triggerCaptureFlash(r.toRow, r.toCol)
+    if (isSoundEnabled()) sound.playCapture({ text: moveText, captured })
+  } else if (isSoundEnabled()) {
+    sound.playMove({ text: moveText, piece: moving })
+  }
   setTimeout(() => {
     animating = false; updateUI()
     if (isSoundEnabled() && game.status === 'check') sound.playCheck()
@@ -214,8 +221,14 @@ function executeMove(fromRow, fromCol, toRow, toCol) {
 
   animating = true
   renderer.startAnim(fromRow, fromCol, toRow, toCol, movingPiece)
-  if (targetPiece) { renderer.triggerCaptureFlash(toRow, toCol); if (isSoundEnabled()) sound.playCapture() }
-  else { if (isSoundEnabled()) sound.playMove() }
+  const last = game.history.at(-1)
+  const moveText = last ? game.getMoveText(last) : ''
+  if (targetPiece) {
+    renderer.triggerCaptureFlash(toRow, toCol)
+    if (isSoundEnabled()) sound.playCapture({ text: moveText, captured: targetPiece })
+  } else if (isSoundEnabled()) {
+    sound.playMove({ text: moveText, piece: movingPiece })
+  }
 
   setTimeout(() => {
     animating = false; updateUI()
@@ -230,34 +243,42 @@ function executeMove(fromRow, fromCol, toRow, toCol) {
 function checkGameEnd() {
   // 走完后 turn 已切到败方；胜方 = 上一手颜色
   const winnerIsRed = game.turn === BLACK
+  const winnerLabel = winnerIsRed ? '红方' : '黑方'
   const playerWon = game.aiMode
     ? (winnerIsRed ? game.aiColor === BLACK : game.aiColor === RED)
     : true
 
   if (game.status === 'checkmate') {
-    statusText.textContent = `${winnerIsRed ? '红方' : '黑方'}胜 · 将杀`
+    statusText.textContent = `${winnerLabel}胜 · 将杀`
     statusText.className = 'status-text checkmate'
     gameOver = true
-    if (isSoundEnabled()) (playerWon ? sound.playWin() : sound.playLose())
+    if (isSoundEnabled()) {
+      if (playerWon) sound.playWin(`${winnerLabel}胜`)
+      else sound.playLose(`${winnerLabel}胜`)
+    }
     return true
   }
   if (game.status === 'stalemate') {
-    statusText.textContent = `${winnerIsRed ? '红方' : '黑方'}胜 · 困毙`
+    statusText.textContent = `${winnerLabel}胜 · 困毙`
     statusText.className = 'status-text checkmate'
     gameOver = true
-    if (isSoundEnabled()) (playerWon ? sound.playWin() : sound.playLose())
+    if (isSoundEnabled()) {
+      if (playerWon) sound.playWin(`${winnerLabel}胜`)
+      else sound.playLose(`${winnerLabel}胜`)
+    }
     return true
   }
   if (game.status === 'draw') {
     statusText.textContent = '和棋'
     statusText.className = 'status-text'
     gameOver = true
+    if (isSoundEnabled()) sound.playDraw()
     return true
   }
   return false
 }
 
-// ─── Canvas：点击 + 拖拽 ───────────────────────────────
+// ─── Canvas：仅点击下棋 ────────────────────────────────
 
 function getCanvasPos(cx, cy) {
   const r = canvas.getBoundingClientRect()
@@ -268,70 +289,14 @@ function canInteract() {
   return !gameOver && !animating && !game.aiThinking && !isAITurn()
 }
 
-let pointerDown = null // { row, col, x, y, dragging }
-const DRAG_THRESHOLD = 8
-
-function onPointerDown(e) {
+canvas.addEventListener('click', (e) => {
   if (!canInteract()) return
   sound.init()
   const p = getCanvasPos(e.clientX, e.clientY)
   const b = renderer.toBoard(p.x, p.y)
   if (!b) return
-  const piece = game.board[b.row][b.col]
-  if (!piece || piece.color !== game.turn) return
 
-  pointerDown = { row: b.row, col: b.col, x: p.x, y: p.y, dragging: false }
-  canvas.setPointerCapture?.(e.pointerId)
-  e.preventDefault()
-}
-
-function onPointerMove(e) {
-  if (!pointerDown || !canInteract()) return
-  const p = getCanvasPos(e.clientX, e.clientY)
-  const dist = Math.hypot(p.x - pointerDown.x, p.y - pointerDown.y)
-
-  if (!pointerDown.dragging && dist > DRAG_THRESHOLD) {
-    const piece = game.board[pointerDown.row][pointerDown.col]
-    if (!piece) { pointerDown = null; return }
-    const moves = game.getValidMovesFor(pointerDown.row, pointerDown.col)
-    game.selected = { row: pointerDown.row, col: pointerDown.col }
-    renderer.startDrag(piece, p.x, p.y, pointerDown.row, pointerDown.col, moves)
-    pointerDown.dragging = true
-    if (isSoundEnabled()) sound.playSelect()
-    canvas.style.cursor = 'grabbing'
-  }
-
-  if (pointerDown.dragging) {
-    renderer.updateDrag(p.x, p.y)
-    e.preventDefault()
-  }
-}
-
-function onPointerUp(e) {
-  if (!pointerDown) return
-  const p = getCanvasPos(e.clientX, e.clientY)
-  const wasDrag = pointerDown.dragging
-  const from = { row: pointerDown.row, col: pointerDown.col }
-  pointerDown = null
-  canvas.style.cursor = ''
-
-  if (wasDrag) {
-    const target = renderer.endDrag(p.x, p.y)
-    game.selected = null
-    if (target && (target.row !== from.row || target.col !== from.col)) {
-      executeMove(from.row, from.col, target.row, target.col)
-    } else {
-      updateUI()
-    }
-    return
-  }
-
-  // 单击：原有点选逻辑
-  if (!canInteract()) return
-  const b = renderer.toBoard(p.x, p.y)
-  if (!b) return
-  const row = b.row
-  const col = b.col
+  const { row, col } = b
   const clicked = game.board[row][col]
 
   if (game.selected) {
@@ -342,7 +307,7 @@ function onPointerUp(e) {
     }
     if (clicked && clicked.color === game.turn) {
       game.selected = { row, col }
-      if (isSoundEnabled()) sound.playSelect()
+      if (isSoundEnabled()) sound.playSelect(clicked)
       updateUI()
       return
     }
@@ -351,32 +316,20 @@ function onPointerUp(e) {
   }
   if (clicked && clicked.color === game.turn) {
     game.selected = { row, col }
-    if (isSoundEnabled()) sound.playSelect()
+    if (isSoundEnabled()) sound.playSelect(clicked)
     updateUI()
   }
-}
+})
 
-function onPointerCancel() {
-  if (pointerDown?.dragging) renderer.endDrag(-1, -1)
-  pointerDown = null
-  game.selected = game.selected // keep selection if click-cancel mid drag without move
-  canvas.style.cursor = ''
-  updateUI()
-}
-
-canvas.addEventListener('pointerdown', onPointerDown)
-canvas.addEventListener('pointermove', onPointerMove)
-canvas.addEventListener('pointerup', onPointerUp)
-canvas.addEventListener('pointercancel', onPointerCancel)
-canvas.style.touchAction = 'none'
-
-// 悬停：己方棋子显示可点光标
 canvas.addEventListener('pointermove', (e) => {
-  if (pointerDown?.dragging || !canInteract()) return
+  if (!canInteract()) {
+    canvas.style.cursor = 'default'
+    return
+  }
   const p = getCanvasPos(e.clientX, e.clientY)
   const b = renderer.toBoard(p.x, p.y)
   const piece = b && game.board[b.row][b.col]
-  canvas.style.cursor = piece && piece.color === game.turn ? 'grab' : 'default'
+  canvas.style.cursor = piece && piece.color === game.turn ? 'pointer' : 'default'
 })
 
 // ─── UI ────────────────────────────────────────────────
@@ -403,7 +356,7 @@ function updateUI() {
       statusText.className = 'status-text'
     }
   } else {
-    statusText.textContent = '点选或拖动棋子'
+    statusText.textContent = '点击棋子走棋'
     statusText.className = 'status-text'
   }
 
@@ -512,6 +465,7 @@ $('btnNewGame').addEventListener('click', () => {
   gameOver = false; animating = false; game.aiThinking = false; game.selected = null
   hintResult = null; updateHintUI(); statusText.className = 'status-text'
   localStorage.removeItem(SAVE_KEY); updateUI()
+  if (isSoundEnabled()) { sound.init(); sound.playNewGame() }
   if (isAITurn()) setTimeout(triggerAI, 300); else scheduleHint()
 })
 
