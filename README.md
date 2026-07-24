@@ -1,86 +1,65 @@
 # 中國象棋 · Xiangqi
 
-<p align="center">
-  极简 · 精美 · 强 AI
-</p>
+<p align="center"><strong>小而美</strong> — 一盘棋，一个 AI，一块暗色棋盘。</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/JavaScript-ES Module-F7DF1E?logo=javascript">
-  <img src="https://img.shields.io/badge/Vite-6.4-646CFF?logo=vite">
-  <img src="https://img.shields.io/badge/Vitest-3.2-6E9F18?logo=vitest">
-  <img src="https://img.shields.io/badge/AI-Iterative Deepening-FF6B6B">
+  <img src="https://img.shields.io/badge/JavaScript-ESM-F7DF1E?logo=javascript" alt="JS">
+  <img src="https://img.shields.io/badge/Vite-6-646CFF?logo=vite" alt="Vite">
+  <img src="https://img.shields.io/badge/tests-110-6E9F18" alt="tests">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT">
 </p>
 
----
+本地可玩的中国象棋：棋盘 + 三档 AI + 提示 + 音效。无账号、无联网、无广告。
 
-一个纯粹的中国象棋 Web 应用。没有多余功能——只有棋盘、强 AI、优雅的暗色界面。
+## 产品边界
 
-## 特性
+**要做的（做深做精）**
 
-- 🎨 **极简暗色 UI** — 左右布局，无滚轮，专注对弈体验
-- 🤖 **三档 AI 难度** — 初学 / 进阶 / 大师，基于迭代加深 + Alpha-Beta 剪枝
-- 🔴⚫ **执红 / 执黑** — 可选先手或后手；执黑自动翻面，AI 先走
-- 💡 **走法提示** — 实时 AI 推荐最佳走法 + 局面评估
-- 🔊 **合成音效** — 走子、吃子、将军、胜负音效（Web Audio API，零外部文件）
-- 🔄 **棋盘翻转** — 侧栏一键切换视角
-- ♻️ **自动存档** — 刷新页面自动恢复对局（含执色）
-- 📱 **响应式** — 桌面 / 平板 / 手机自适应
+- 规则正确、着法合法
+- AI 可玩（初学 / 进阶 / 大师）
+- 界面安静、暗色、少控件
+- 刷新可续局
 
-## 快速开始
+**不做的（刻意砍掉）**
+
+- 联网对战、排行榜、账号
+- 开局库 / 引擎外挂 / UCI
+- 皮肤商城、观战、直播
+- 重型框架与多余页面
+
+新功能默认 **拒绝**，除非同时满足：提升对弈本身、不增加认知负担、可用本地测试验证。
+
+## 能力清单
+
+| | |
+|---|---|
+| 对弈 | 人机 · 执红/执黑 · 悔棋 · 翻转视角 |
+| AI | 迭代加深 · α-β · 置换表 · 静默搜索 |
+| 辅助 | 走法提示 · 局面分 · 被吃子 · 着法记录 |
+| 体验 | 暗色 UI · 合成音效 · 自动存档 · 响应式 |
+
+## 本地运行
 
 ```bash
 npm install
-npm run dev     # 启动开发服务器 (http://localhost:5173)
-npm test        # 运行 110+ 测试用例
-npm run build   # 构建生产版本 → dist/
+npm run dev      # http://localhost:5173
+npm test         # 110 项
+npm run build
 ```
 
-## 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| 渲染 | HTML5 Canvas |
-| 构建 | Vite 6 |
-| 测试 | Vitest (110 测试) |
-| AI | 迭代加深 + Alpha-Beta 剪枝 + Zobrist 置换表 + MVV-LVA 走法排序 |
-| 音效 | Web Audio API (合成音效) |
-| 字体 | Noto Serif SC / DM Sans |
-
-## 项目结构
+## 结构
 
 ```
-xiangqi/
-├── js/
-│   ├── main.js          # 主控制器（交互、UI、AI 调度）
-│   ├── game.js           # 游戏状态管理
-│   ├── pieces.js         # 棋子走法规则引擎 (51 测试)
-│   ├── renderer.js       # Canvas 渲染（含动画）
-│   ├── ai.js             # AI 引擎（迭代加深 + 置换表）
-│   ├── ai-worker.js      # AI Web Worker（不阻塞 UI）
-│   ├── sound.js          # Web Audio API 合成音效
-│   ├── fen.js            # FEN 导入/导出
-│   ├── perpetual.js      # 循环局面检测（Zobrist 哈希）
-│   └── constants.js      # 常量定义
-├── css/
-│   └── style.css         # 暗色主题样式
-├── tests/                # 110 个测试用例
-├── index.html
-├── vite.config.js
-└── package.json
+js/          规则 · 对局 · AI · 渲染 · 音效
+css/         暗色主题（单文件）
+tests/       Vitest
+index.html   唯一页面
 ```
 
-## AI 引擎
+## AI（简述）
 
-基于经典博弈树搜索，从零实现：
-
-- **迭代加深** — 时间可控，浅层结果可随时使用
-- **Alpha-Beta 剪枝** — 大幅减少搜索节点
-- **Zobrist 置换表** — 缓存已评估局面，避免重复搜索
-- **MVV-LVA 走法排序** — 先搜索最有希望的走法，提高剪枝效率
-- **坐席搜索 (Quiescence Search)** — 解决水平线效应
-- **位置价值表** — 为每个棋子类型定制的位置评估
-
-难度对应搜索深度：初学 2 层 / 进阶 4 层 / 大师 6 层
+迭代加深 + Alpha-Beta + Zobrist 置换表 + MVV-LVA 排序 + 静默搜索。  
+深度：初学 2 / 进阶 4 / 大师 6。Worker 内搜索，不卡 UI。
 
 ## 许可
 

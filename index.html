@@ -37,26 +37,26 @@
           <span class="status-text" id="statusText">点击棋子开始</span>
         </div>
 
-        <!-- Side: 执红 / 执黑 -->
-        <div class="diff-group side-group">
-          <span class="diff-label">执子</span>
-          <button class="side-btn active" data-side="red" id="sideRed">执红</button>
-          <button class="side-btn" data-side="black" id="sideBlack">执黑</button>
+        <!-- 对局设置：执色 + 难度（同一视觉层级，不堆控件） -->
+        <div class="setup-block">
+          <div class="diff-group side-group">
+            <span class="diff-label">执</span>
+            <button type="button" class="side-btn active" data-side="red" id="sideRed">红</button>
+            <button type="button" class="side-btn" data-side="black" id="sideBlack">黑</button>
+          </div>
+          <div class="diff-group">
+            <span class="diff-label">难</span>
+            <button type="button" class="diff-btn" data-diff="1">初</button>
+            <button type="button" class="diff-btn active" data-diff="2">进</button>
+            <button type="button" class="diff-btn" data-diff="3">师</button>
+          </div>
         </div>
 
-        <!-- Difficulty -->
-        <div class="diff-group">
-          <span class="diff-label">难度</span>
-          <button class="diff-btn" data-diff="1">初学</button>
-          <button class="diff-btn active" data-diff="2">进阶</button>
-          <button class="diff-btn" data-diff="3">大师</button>
-        </div>
-
-        <!-- AI Hint -->
+        <!-- 提示：只保留必要分析 -->
         <div class="hint-panel">
           <div class="hint-header">
-            <span class="hint-title">走法提示</span>
-            <button class="hint-refresh" id="hintRefresh" title="刷新分析">⟳</button>
+            <span class="hint-title">提示</span>
+            <button type="button" class="hint-refresh" id="hintRefresh" title="重新分析">↻</button>
           </div>
           <div class="hint-body">
             <div class="hint-move" id="hintMove">—</div>
@@ -70,29 +70,27 @@
           </div>
         </div>
 
-        <!-- Actions -->
+        <!-- 操作：四字按钮，无 emoji 噪音 -->
         <div class="actions-row">
-          <button class="action-btn" id="btnNewGame">🔄 新局</button>
-          <button class="action-btn" id="btnUndo">↩ 悔棋</button>
-          <button class="action-btn" id="btnFlip" title="翻转棋盘视角">⇅ 翻转</button>
-          <button class="action-btn" id="btnSound">🔊 音效</button>
+          <button type="button" class="action-btn" id="btnNewGame">新局</button>
+          <button type="button" class="action-btn" id="btnUndo">悔棋</button>
+          <button type="button" class="action-btn" id="btnFlip" title="翻转视角">翻转</button>
+          <button type="button" class="action-btn" id="btnSound">音效</button>
         </div>
 
-        <!-- Captured -->
         <div class="captured-row">
-          <span class="captured-label">红方失:</span>
+          <span class="captured-label">红失</span>
           <span class="captured-items" id="capturedRed"></span>
         </div>
         <div class="captured-row">
-          <span class="captured-label">黑方失:</span>
+          <span class="captured-label">黑失</span>
           <span class="captured-items" id="capturedBlack"></span>
         </div>
 
-        <!-- Move History (fills remaining sidebar space) -->
         <div class="history-section">
-          <div class="history-header">走法记录</div>
+          <div class="history-header">着法</div>
           <div class="history-list" id="moveHistory">
-            <span class="history-empty">对局尚未开始</span>
+            <span class="history-empty">尚未开始</span>
           </div>
         </div>
       </div>

@@ -289,7 +289,7 @@ function updateCaptured(el, pieces, color) {
 
 function renderMoveHistory() {
   if (!moveHistory) return
-  if (game.history.length === 0) { moveHistory.innerHTML = '<span class="history-empty">对局尚未开始</span>'; return }
+  if (game.history.length === 0) { moveHistory.innerHTML = '<span class="history-empty">尚未开始</span>'; return }
   moveHistory.innerHTML = game.history.map((m, i) =>
     `<span class="history-move"><span class="num">${i + 1}.</span><span class="${m.piece?.color === RED ? 'red' : 'black'}">${game.getMoveText(m)}</span></span>`
   ).join('')
@@ -302,10 +302,17 @@ const SOUND_KEY = 'xiangqi_sound'
 
 function isSoundEnabled() { return localStorage.getItem(SOUND_KEY) !== 'off' }
 
+function syncSoundButton() {
+  const on = isSoundEnabled()
+  $('btnSound').textContent = on ? '音效' : '静音'
+  $('btnSound').classList.toggle('is-muted', !on)
+  $('btnSound').title = on ? '关闭音效' : '打开音效'
+}
+
 function toggleSound() {
   const on = !isSoundEnabled()
   localStorage.setItem(SOUND_KEY, on ? 'on' : 'off')
-  $('btnSound').textContent = on ? '🔊 音效' : '🔇 静音'
+  syncSoundButton()
   sound.setEnabled(on)
   if (on) sound.playMove()
 }
@@ -434,7 +441,7 @@ document.addEventListener('keydown', (e) => {
 
 function init() {
   sound.setEnabled(isSoundEnabled())
-  $('btnSound').textContent = isSoundEnabled() ? '🔊 音效' : '🔇 静音'
+  syncSoundButton()
   tryRestore()
   // 无存档时默认执红
   if (game.history.length === 0 && !localStorage.getItem(SAVE_KEY)) {

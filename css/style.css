@@ -210,7 +210,13 @@ body {
 .status-text.check { color: var(--red); }
 .status-text.checkmate { color: var(--gold); }
 
-/* ─── Difficulty ─── */
+/* ─── 对局设置（执色 + 难度）─── */
+
+.setup-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .diff-group {
   display: flex;
@@ -417,6 +423,11 @@ body {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: rgba(212,168,83,0.2);
+}
+
+.action-btn.is-muted {
+  color: var(--text-muted);
+  opacity: 0.75;
 }
 
 .action-btn:disabled {
