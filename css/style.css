@@ -393,11 +393,8 @@ body {
 
 .actions-row {
   display: flex;
-  gap: 5px;
-}
-
-.actions-row {
   flex-wrap: wrap;
+  gap: 5px;
 }
 
 .action-btn {
