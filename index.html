@@ -37,6 +37,13 @@
           <span class="status-text" id="statusText">点击棋子开始</span>
         </div>
 
+        <!-- Side: 执红 / 执黑 -->
+        <div class="diff-group side-group">
+          <span class="diff-label">执子</span>
+          <button class="side-btn active" data-side="red" id="sideRed">执红</button>
+          <button class="side-btn" data-side="black" id="sideBlack">执黑</button>
+        </div>
+
         <!-- Difficulty -->
         <div class="diff-group">
           <span class="diff-label">难度</span>
@@ -67,6 +74,7 @@
         <div class="actions-row">
           <button class="action-btn" id="btnNewGame">🔄 新局</button>
           <button class="action-btn" id="btnUndo">↩ 悔棋</button>
+          <button class="action-btn" id="btnFlip" title="翻转棋盘视角">⇅ 翻转</button>
           <button class="action-btn" id="btnSound">🔊 音效</button>
         </div>
 

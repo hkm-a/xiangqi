@@ -312,9 +312,36 @@ function toggleSound() {
 
 // ─── Persistence ───────────────────────────────────────
 
+function getPlayerColor() {
+  return document.querySelector('.side-btn.active')?.dataset?.side === 'black' ? BLACK : RED
+}
+
+function applySideUI(playerColor) {
+  document.querySelectorAll('.side-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.side === (playerColor === BLACK ? 'black' : 'red'))
+  })
+}
+
+/** 人机对战：玩家执色 → AI 执对面；执黑时默认翻面 */
+function applyPlayerSide(playerColor, { flipForBlack = true } = {}) {
+  game.aiMode = true
+  game.aiColor = playerColor === RED ? BLACK : RED
+  if (flipForBlack) game.flipped = playerColor === BLACK
+  applySideUI(playerColor)
+}
+
 function autoSave() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ fen: game.toFEN(), difficulty: getDifficulty(), flipped: game.flipped })) }
-  catch { /* noop */ }
+  try {
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify({
+        fen: game.toFEN(),
+        difficulty: getDifficulty(),
+        flipped: game.flipped,
+        playerColor: getPlayerColor() === BLACK ? 'black' : 'red',
+      })
+    )
+  } catch { /* noop */ }
 }
 
 function tryRestore() {
@@ -324,8 +351,10 @@ function tryRestore() {
     const d = JSON.parse(raw)
     if (!d.fen || d.fen === START_FEN) return
     game.fromFEN(d.fen)
-    game.aiMode = true; game.aiColor = BLACK
-    game.aiDifficulty = d.difficulty || 2; game.flipped = !!d.flipped
+    const playerColor = d.playerColor === 'black' ? BLACK : RED
+    applyPlayerSide(playerColor, { flipForBlack: false })
+    game.flipped = !!d.flipped
+    game.aiDifficulty = d.difficulty || 2
     gameOver = false
     diffBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.diff || '2', 10) === game.aiDifficulty))
     updateUI()
@@ -339,7 +368,9 @@ function gameLoop(now) { renderer.render(game, now); requestAnimationFrame(gameL
 // ─── Buttons ───────────────────────────────────────────
 
 $('btnNewGame').addEventListener('click', () => {
-  game.reset(); game.aiMode = true; game.aiColor = BLACK
+  const playerColor = getPlayerColor()
+  game.reset()
+  applyPlayerSide(playerColor)
   gameOver = false; animating = false; game.aiThinking = false; game.selected = null
   hintResult = null; updateHintUI(); statusText.className = 'status-text'
   localStorage.removeItem(SAVE_KEY); updateUI()
@@ -348,11 +379,39 @@ $('btnNewGame').addEventListener('click', () => {
 
 $('btnUndo').addEventListener('click', () => {
   if (game.aiThinking || game.history.length === 0) return
-  for (let i = 0; i < 2; i++) if (game.history.length > 0) game.undo()
-  gameOver = false; game.selected = null; updateUI(); scheduleHint()
+  // 人机各悔一步；若玩家执黑且仅有 AI 先手一步，则悔一步
+  const steps = game.history.length >= 2 ? 2 : 1
+  for (let i = 0; i < steps; i++) if (game.history.length > 0) game.undo()
+  gameOver = false; game.selected = null; updateUI()
+  if (isAITurn()) setTimeout(triggerAI, 200); else scheduleHint()
+})
+
+$('btnFlip').addEventListener('click', () => {
+  game.flipBoard()
+  game.selected = null
+  updateUI()
+  autoSave()
 })
 
 $('btnSound').addEventListener('click', toggleSound)
+
+// 执红 / 执黑：新局生效（进行中切换会提示并开新局）
+document.querySelectorAll('.side-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const side = btn.dataset.side === 'black' ? BLACK : RED
+    if (side === getPlayerColor() && document.querySelector('.side-btn.active') === btn) return
+    const midGame = game.history.length > 0
+    applySideUI(side)
+    if (midGame) {
+      // 中局换边 = 按新执色开新局，避免局面与 AI 颜色错乱
+      $('btnNewGame').click()
+    } else {
+      applyPlayerSide(side)
+      updateUI()
+      if (isAITurn()) setTimeout(triggerAI, 300); else scheduleHint()
+    }
+  })
+})
 
 // ─── Difficulty ────────────────────────────────────────
 
@@ -377,6 +436,12 @@ function init() {
   sound.setEnabled(isSoundEnabled())
   $('btnSound').textContent = isSoundEnabled() ? '🔊 音效' : '🔇 静音'
   tryRestore()
+  // 无存档时默认执红
+  if (game.history.length === 0 && !localStorage.getItem(SAVE_KEY)) {
+    applyPlayerSide(RED)
+  } else {
+    applySideUI(game.aiColor === BLACK ? RED : BLACK)
+  }
   gameLoop(performance.now())
   if (!gameOver) scheduleHint()
   if (isAITurn()) setTimeout(triggerAI, 300)

@@ -250,6 +250,38 @@ body {
   box-shadow: 0 0 8px var(--gold-glow);
 }
 
+/* 执红 / 执黑 */
+.side-group .side-btn {
+  flex: 1;
+  padding: 4px 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.side-group .side-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.side-group .side-btn.active[data-side="red"] {
+  background: var(--red-dim);
+  color: #e57373;
+  box-shadow: 0 0 8px rgba(198, 40, 40, 0.15);
+}
+
+.side-group .side-btn.active[data-side="black"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.06);
+}
+
 /* ─── AI Hint ─── */
 
 .hint-panel {
@@ -364,12 +396,17 @@ body {
   gap: 5px;
 }
 
+.actions-row {
+  flex-wrap: wrap;
+}
+
 .action-btn {
-  flex: 1;
+  flex: 1 1 calc(50% - 5px);
+  min-width: 0;
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  padding: 6px 6px;
+  padding: 6px 4px;
   border: 1px solid var(--border-subtle);
   border-radius: 7px;
   background: var(--bg-elevated);
