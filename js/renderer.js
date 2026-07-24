@@ -21,7 +21,7 @@ export class Renderer {
     // 动画状态
     this.animPiece = null
     this.animStart = null
-    this.animDuration = 220 // ms — 略放慢，走子更顺
+    this.animDuration = 230 // ms — 与 main ANIM_MS 对齐
 
     // 吃子闪光效果
     this.captureFlash = null // { row, col, start }

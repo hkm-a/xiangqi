@@ -34,54 +34,53 @@ export class SoundManager {
     this.volume = Math.max(0, Math.min(1, v))
   }
 
-  /** 播放走子音效 (短促点击声) */
+  /** 走子：短木子落盘 */
   playMove() {
     if (!this._ready()) return
-    this._playTone(600, 0.06, 'sine', 0.3)
+    this._playTone(520, 0.05, 'sine', 0.22)
+    this._playTone(380, 0.04, 'triangle', 0.12)
   }
 
-  /** 播放吃子音效 (较响的撞击声) */
+  /** 吃子：略重一记 */
   playCapture() {
     if (!this._ready()) return
-    this._playTone(300, 0.15, 'triangle', 0.5)
-    setTimeout(() => this._playTone(200, 0.1, 'sawtooth', 0.3), 50)
+    this._playTone(240, 0.12, 'triangle', 0.38)
+    setTimeout(() => this._playTone(160, 0.1, 'sine', 0.22), 40)
   }
 
-  /** 播放将军音效 (警示音) */
+  /** 将军：两声清亮提示 */
   playCheck() {
     if (!this._ready()) return
-    this._playTone(880, 0.1, 'square', 0.4)
-    setTimeout(() => this._playTone(1100, 0.15, 'square', 0.3), 100)
+    this._playTone(740, 0.08, 'sine', 0.28)
+    setTimeout(() => this._playTone(980, 0.12, 'sine', 0.24), 90)
   }
 
-  /** 播放胜利音效 */
+  /** 胜利 */
   playWin() {
     if (!this._ready()) return
-    const notes = [523, 659, 784, 1047]
-    notes.forEach((freq, i) => {
-      setTimeout(() => this._playTone(freq, 0.2, 'sine', 0.3), i * 150)
+    ;[523, 659, 784, 1047].forEach((freq, i) => {
+      setTimeout(() => this._playTone(freq, 0.18, 'sine', 0.26), i * 140)
     })
   }
 
-  /** 播放失败音效 */
+  /** 失败 */
   playLose() {
     if (!this._ready()) return
-    const notes = [400, 350, 300, 250]
-    notes.forEach((freq, i) => {
-      setTimeout(() => this._playTone(freq, 0.25, 'sawtooth', 0.2), i * 200)
+    ;[420, 340, 280].forEach((freq, i) => {
+      setTimeout(() => this._playTone(freq, 0.2, 'triangle', 0.18), i * 160)
     })
   }
 
-  /** 播放落子/选择音效 */
+  /** 选子：更轻 */
   playSelect() {
     if (!this._ready()) return
-    this._playTone(800, 0.04, 'sine', 0.2)
+    this._playTone(720, 0.03, 'sine', 0.12)
   }
 
-  /** 播放倒计时警告音 */
-  playTimerWarning() {
+  /** 非法落点：闷 ded */
+  playIllegal() {
     if (!this._ready()) return
-    this._playTone(1000, 0.08, 'square', 0.3)
+    this._playTone(180, 0.08, 'triangle', 0.18)
   }
 
   // ─── 内部 ─────────────────────────────────────────

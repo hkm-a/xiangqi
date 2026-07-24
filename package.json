@@ -1,6 +1,6 @@
 {
   "name": "xiangqi",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "中国象棋 · 小而美：棋盘 + 三档 AI + 暗色界面",
   "type": "module",

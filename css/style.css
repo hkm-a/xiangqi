@@ -117,6 +117,9 @@ body {
   width: var(--board-w);
   height: var(--board-h);
   background: transparent;
+  cursor: default;
+  touch-action: none; /* 支持拖拽，避免页面滚动抢走手势 */
+  user-select: none;
 }
 
 /* ─── AI Thinking ─── */
