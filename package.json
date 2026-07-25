@@ -13,6 +13,7 @@
     "lint": "eslint js/ tests/ scripts/",
     "tts:generate": "node scripts/generate-tts.mjs",
     "tts:force": "node scripts/generate-tts.mjs --force",
+    "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "desktop:build:debug": "tauri build --debug",

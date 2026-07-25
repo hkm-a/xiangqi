@@ -44,6 +44,17 @@ jobs:
       - name: 单元测试
         run: npm test
 
+      - name: 检查更新签名私钥
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::缺少 Secret TAURI_SIGNING_PRIVATE_KEY。请把本机 .tauri/xiangqi.key 全文粘贴到仓库 Secrets（见 docs/RELEASE.md）。"
+            exit 1
+          fi
+          echo "已检测到 TAURI_SIGNING_PRIVATE_KEY（长度 ${#KEY}）"
+
       - name: 解析版本 tag
         id: ver
         shell: bash
@@ -53,7 +64,7 @@ jobs:
           elif [ -n "${{ inputs.tag }}" ]; then
             echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "手动触发时请填写 tag（如 v1.3.1）" >&2
+            echo "手动触发时请填写 tag（如 v1.4.0）" >&2
             exit 1
           fi
 
@@ -82,4 +93,5 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
+          projectPath: .
           args: --bundles nsis
