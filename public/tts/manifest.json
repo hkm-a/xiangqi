@@ -1,6 +1,9 @@
 {
-  "voice": "zh-CN-XiaoxiaoNeural",
+  "voice": "zh-CN-YunxiNeural",
   "engine": "edge-tts",
+  "rate": "+8%",
+  "pitch": "-4Hz",
+  "note": "运行时 playbackRate≈1.0，勿再大幅加速",
   "clips": {
     "p-che": "车",
     "p-ma": "马",
@@ -23,14 +26,14 @@
     "v-jin": "进",
     "v-tui": "退",
     "v-ping": "平",
-    "e-jiangjun": "将军",
-    "e-buneng": "不能走",
-    "e-heqi": "和棋",
-    "e-xinju": "新局",
-    "e-hongsheng": "红方胜",
-    "e-heisheng": "黑方胜",
-    "e-niying": "你赢了",
-    "e-nishu": "你输了",
+    "e-jiangjun": "将军！",
+    "e-buneng": "不能走。",
+    "e-heqi": "和棋。",
+    "e-xinju": "新的一局。",
+    "e-hongsheng": "红方胜。",
+    "e-heisheng": "黑方胜。",
+    "e-niying": "你赢了。",
+    "e-nishu": "你输了。",
     "e-chi": "吃",
     "e-zou": "走"
   }

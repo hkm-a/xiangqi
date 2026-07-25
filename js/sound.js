@@ -1,7 +1,7 @@
 // ============================================================
 // 象棋 - 离线中文 TTS 播报
 // 片段由 scripts/generate-tts.mjs（node-edge-tts）预生成
-// 运行时：加速播放 + 裁静音，着法与「将军」同一队列，避免被 AI 打断
+// 自然听感：生成仅微加速，运行时接近原速；音节间留短间隙
 // ============================================================
 
 import { spokenPieceToken } from './notation.js'
@@ -9,19 +9,22 @@ import { spokenPieceToken } from './notation.js'
 /** 基路径：Vite 下 public/tts → /tts */
 const TTS_BASE = `${import.meta.env?.BASE_URL || './'}tts/`
 
-/** 播放倍速（预生成已偏快，再叠一层保证干脆） */
-const PLAYBACK_RATE = 1.35
-/** 裁掉首尾低于此阈值的静音（相对峰值） */
-const SILENCE_RATIO = 0.04
-/** 片段之间的重叠/间隙（秒，负值=轻微叠读更紧凑） */
-const CLIP_GAP = -0.02
+/**
+ * 播放倍速：≈原速（预生成已是 +8%）
+ * 旧版 1.35x 叠 +45% 会明显「人机」
+ */
+const PLAYBACK_RATE = 1.02
+/** 裁静音阈值（略保守，保留尾音气口） */
+const SILENCE_RATIO = 0.028
+/** 音节间隙（秒）：正值更像人说话，避免叠读发硬 */
+const CLIP_GAP = 0.045
 
 export class SoundManager {
   constructor() {
     /** @type {AudioContext|null} */
     this.ctx = null
     this.enabled = true
-    this.volume = 0.9
+    this.volume = 0.92
     this.rate = PLAYBACK_RATE
     /** @type {Map<string, AudioBuffer>} */
     this._cache = new Map()
@@ -264,9 +267,20 @@ export class SoundManager {
       src.connect(gain)
       gain.connect(this.ctx.destination)
 
+      // 短淡入淡出，拼接时少爆音、更不「电子」
+      const now = this.ctx.currentTime
+      const dur = buffer.duration / this.rate
+      const fade = Math.min(0.012, dur * 0.08)
+      gain.gain.setValueAtTime(0, now)
+      gain.gain.linearRampToValueAtTime(this.volume, now + fade)
+      if (dur > fade * 2) {
+        gain.gain.setValueAtTime(this.volume, now + dur - fade)
+        gain.gain.linearRampToValueAtTime(0.0001, now + dur)
+      }
+
       this._playing.push(src)
-      // 按加速后的有效时长衔接下一片（略重叠更紧凑）
-      const durationMs = Math.max(40, (buffer.duration / this.rate + CLIP_GAP) * 1000)
+      // 有效时长 + 音节间隙
+      const durationMs = Math.max(50, (dur + CLIP_GAP) * 1000)
       let settled = false
       const done = () => {
         if (settled) return
