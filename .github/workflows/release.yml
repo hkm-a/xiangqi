@@ -96,11 +96,11 @@ jobs:
           # 继承 GITHUB_ENV 中的 TAURI_SIGNING_PRIVATE_KEY / _PATH
         with:
           tagName: ${{ steps.ver.outputs.tag }}
-          releaseName: 中國象棋 ${{ steps.ver.outputs.tag }}
+          releaseName: 中国象棋 ${{ steps.ver.outputs.tag }}
           releaseBody: |
-            ## 中國象棋 桌面版 ${{ steps.ver.outputs.tag }}
+            ## 中国象棋桌面版 ${{ steps.ver.outputs.tag }}
 
-            - **安装包**：`中國象棋_*_x64-setup.exe`（推荐，含桌面/开始菜单快捷方式）
+            - **安装包**：`Xiangqi_*_x64-setup.exe`（推荐，含桌面/开始菜单快捷方式）
             - 自动更新清单：`latest.json`（已安装旧版启动后可检测）
 
             ### 自动更新
@@ -113,4 +113,4 @@ jobs:
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           projectPath: .
-          args: --bundles nsis
+          args: --config src-tauri/tauri.release.conf.json --bundles nsis
