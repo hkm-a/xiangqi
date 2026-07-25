@@ -2,7 +2,6 @@
 // 象棋 - 循环局面检测 (长将/长捉)
 // ============================================================
 import { ROWS, COLS, RED, BLACK } from './constants.js'
-import { findKing, isInCheck } from './pieces.js'
 
 /**
  * Zobrist hash 工具 — 用于高效检测重复局面

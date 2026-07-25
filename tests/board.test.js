@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { createInitialBoard, cloneBoard } from '../js/pieces.js'
-import { KING, ROOK, CANNON, HORSE, PAWN, RED, BLACK, ROWS, COLS } from '../js/constants.js'
+import { createInitialBoard } from '../js/pieces.js'
+import { KING, ROOK, RED, BLACK, ROWS, COLS } from '../js/constants.js'
 
 const p = (type, color) => ({ type, color })
 

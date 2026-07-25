@@ -4,96 +4,112 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>中國象棋</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="description" content="本地中国象棋：棋盘 · 三档 AI · 离线语音">
+  <meta name="theme-color" content="#0a0a0e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon-192.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon-192.svg">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- 氛围层：暗金云纹（纯 CSS，零图片） -->
+  <div class="atmosphere" aria-hidden="true">
+    <div class="atm-glow atm-glow-a"></div>
+    <div class="atm-glow atm-glow-b"></div>
+    <div class="atm-lattice"></div>
+  </div>
+
   <div class="app">
-    <!-- Header -->
-    <header class="app-header">
-      <h1 class="app-title">中 國 象 棋</h1>
-    </header>
-
-    <!-- Main: Board + Sidebar -->
     <div class="main-content">
-      <!-- Board (left) -->
-      <div class="board-section">
+      <!-- 棋盘：视觉中心 -->
+      <section class="board-section" aria-label="棋盘">
+        <div class="board-ornament board-ornament-tl" aria-hidden="true"></div>
+        <div class="board-ornament board-ornament-tr" aria-hidden="true"></div>
+        <div class="board-ornament board-ornament-bl" aria-hidden="true"></div>
+        <div class="board-ornament board-ornament-br" aria-hidden="true"></div>
+
         <div class="board-frame">
-          <canvas id="gameCanvas"></canvas>
+          <div class="board-frame-inner">
+            <canvas id="gameCanvas"></canvas>
+          </div>
+          <!-- 将军闪印 -->
+          <div class="check-flash" id="checkFlash" hidden aria-hidden="true">
+            <span class="check-flash-char">將</span>
+          </div>
+          <!-- 终局朱印 -->
+          <div class="end-seal" id="endSeal" hidden aria-live="polite">
+            <span class="end-seal-char" id="endSealChar">勝</span>
+            <span class="end-seal-sub" id="endSealSub"></span>
+          </div>
         </div>
-        <div class="ai-thinking" id="aiThinking" style="display:none">
-          <div class="ai-thinking-bar" id="aiThinkingBar"></div>
-          <span class="ai-thinking-label">AI 思考中...</span>
-        </div>
-      </div>
+      </section>
 
-      <!-- Sidebar (right) -->
-      <div class="sidebar">
-        <!-- Status -->
-        <div class="status-row">
+      <!-- 侧栏 -->
+      <aside class="sidebar" aria-label="对局">
+        <header class="brand">
+          <div class="brand-plaque">
+            <div class="brand-plaque-edge" aria-hidden="true"></div>
+            <h1 class="brand-art" aria-label="中國象棋">
+              <span class="brand-char">中</span>
+              <span class="brand-char">國</span>
+              <span class="brand-char">象</span>
+              <span class="brand-char">棋</span>
+            </h1>
+            <span class="brand-seal" aria-hidden="true">帥</span>
+          </div>
+          <p class="brand-sub">
+            <span class="brand-sub-line"></span>
+            <span>小而美 · 本地对弈</span>
+            <span class="brand-sub-line"></span>
+          </p>
+        </header>
+
+        <p class="status-line">
           <span class="turn-dot" id="turnDot"></span>
-          <span class="turn-label" id="turnLabel">红方走棋</span>
-          <span class="status-text" id="statusText">点击棋子开始</span>
-        </div>
+          <span id="statusText">红方走棋</span>
+        </p>
 
-        <!-- 对局设置：执色 + 难度（同一视觉层级，不堆控件） -->
-        <div class="setup-block">
-          <div class="diff-group side-group">
-            <span class="diff-label">执</span>
-            <button type="button" class="side-btn active" data-side="red" id="sideRed">红</button>
-            <button type="button" class="side-btn" data-side="black" id="sideBlack">黑</button>
-          </div>
-          <div class="diff-group">
-            <span class="diff-label">难</span>
-            <button type="button" class="diff-btn" data-diff="1">初</button>
-            <button type="button" class="diff-btn active" data-diff="2">进</button>
-            <button type="button" class="diff-btn" data-diff="3">师</button>
-          </div>
-        </div>
-
-        <!-- 提示：只保留必要分析 -->
-        <div class="hint-panel">
-          <div class="hint-header">
-            <span class="hint-title">提示</span>
-            <button type="button" class="hint-refresh" id="hintRefresh" title="重新分析">↻</button>
-          </div>
-          <div class="hint-body">
-            <div class="hint-move" id="hintMove">—</div>
-            <div class="hint-eval-bar-wrap">
-              <div class="hint-eval-bar">
-                <div class="hint-eval-fill" id="hintEvalFill"></div>
-                <div class="hint-eval-divider"></div>
-              </div>
-              <span class="hint-eval-score" id="hintEvalScore">0.00</span>
+        <div class="panel-block">
+          <div class="chips" role="group" aria-label="设置">
+            <div class="chip-row">
+              <button type="button" class="chip side-btn active" data-side="red" id="sideRed">红</button>
+              <button type="button" class="chip side-btn" data-side="black" id="sideBlack">黑</button>
+            </div>
+            <div class="chip-row">
+              <button type="button" class="chip diff-btn" data-diff="1">初</button>
+              <button type="button" class="chip diff-btn active" data-diff="2">进</button>
+              <button type="button" class="chip diff-btn" data-diff="3">师</button>
             </div>
           </div>
         </div>
 
-        <!-- 操作：四字按钮，无 emoji 噪音 -->
-        <div class="actions-row">
-          <button type="button" class="action-btn" id="btnNewGame">新局</button>
-          <button type="button" class="action-btn" id="btnUndo">悔棋</button>
-          <button type="button" class="action-btn" id="btnFlip" title="翻转视角">翻转</button>
-          <button type="button" class="action-btn" id="btnSound">音效</button>
+        <div class="hint-line panel-block">
+          <button type="button" class="hint-btn" id="hintRefresh" title="分析当前局面 (H)">示</button>
+          <span class="hint-move" id="hintMove">点示</span>
         </div>
 
-        <div class="captured-row">
-          <span class="captured-label">红失</span>
-          <span class="captured-items" id="capturedRed"></span>
-        </div>
-        <div class="captured-row">
-          <span class="captured-label">黑失</span>
-          <span class="captured-items" id="capturedBlack"></span>
-        </div>
+        <nav class="actions" aria-label="操作">
+          <button type="button" class="link-btn" id="btnNewGame">新局</button>
+          <button type="button" class="link-btn" id="btnUndo">悔棋</button>
+          <button type="button" class="link-btn" id="btnFlip" title="翻转视角 (F)">翻转</button>
+          <button type="button" class="link-btn" id="btnSound">音效</button>
+        </nav>
 
-        <div class="history-section">
-          <div class="history-header">着法</div>
-          <div class="history-list" id="moveHistory">
+        <p class="captured" id="capturedLine" aria-label="被吃子"></p>
+
+        <div class="history-block">
+          <div class="history-meta">
+            <span class="history-label">着法</span>
+            <button type="button" class="link-btn history-copy" id="btnCopyMoves" title="复制记谱 (C)" hidden>复制</button>
+          </div>
+          <div class="history" id="moveHistory" title="双击复制记谱">
             <span class="history-empty">尚未开始</span>
           </div>
         </div>
-      </div>
+      </aside>
     </div>
   </div>
 

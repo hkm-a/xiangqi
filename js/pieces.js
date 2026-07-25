@@ -334,22 +334,16 @@ export function isStalemate(board, color) {
  * @param {object|null} kingPos - 当前己方将位置（可选，用于性能）
  * @returns {boolean} true=非法（走后被将）
  */
-function isMoveIllegal(board, fromRow, fromCol, toRow, toCol, color, kingPos = null) {
+function isMoveIllegal(board, fromRow, fromCol, toRow, toCol, color, _kingPos = null) {
   // 快速模拟走棋
   const captured = board[toRow][toCol]
   const movingPiece = board[fromRow][fromCol]
-  
+
   // 执行走棋
   board[toRow][toCol] = movingPiece
   board[fromRow][fromCol] = null
 
-  // 如果走的是将，更新将的位置
-  let thisKingPos = kingPos
-  if (movingPiece.type === KING) {
-    thisKingPos = { row: toRow, col: toCol }
-  }
-
-  // 检查走后是否被将军
+  // 检查走后是否被将军（isInCheck 会重新找将）
   const inCheck = isInCheck(board, color)
 
   // 恢复棋盘

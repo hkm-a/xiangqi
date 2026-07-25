@@ -13,14 +13,6 @@ function emptyBoard() {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null))
 }
 
-function boardWith(...placements) {
-  const b = emptyBoard()
-  for (const [row, col, type, color] of placements) {
-    b[row][col] = p(type, color)
-  }
-  return b
-}
-
 function toSet(moves) {
   return new Set(moves.map(m => `${m.row},${m.col}`))
 }
@@ -452,16 +444,7 @@ describe('isInCheck()', () => {
     board[9][4] = p(KING, RED)
     board[6][4] = p(PAWN, BLACK) // block flying general
     board[1][4] = p(PAWN, RED) // red pawn one step from black king
-    // wait, pawn moves forward (up for red). Red pawn at (1,4) → forward is (0,4) which is the king
-    // But wait, pawn attack is the same as its move direction. So red pawn at (1,4) can move to (0,4) - capturing the king
-    // So the black king at (0,4) is attacked by red pawn at (1,4)
-    const redPawn = board[1][4]
-    // Actually pawn forward is -1 for red. So red pawn at row 1 moves to row 0. 
-    // But wait - can a red pawn even be at row 1? It would have crossed the whole board past the enemy camp. 
-    // That's unusual but possible.
-    // Is the black king in check from the red pawn? The pawn attacks (0,4) by moving forward to (0,4).
-    // Actually, the pawn attacks/moves to (row-1, col) = (0,4) for red. 
-    // So yes, the pawn attacks the king position.
+    // 红兵在 (1,4) 向前可吃 (0,4) 黑将
     expect(isInCheck(board, BLACK)).toBe(true)
   })
 })

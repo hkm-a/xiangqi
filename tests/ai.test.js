@@ -3,8 +3,8 @@
 // ============================================================
 import { describe, it, expect } from 'vitest'
 import { evaluate, findBestMove } from '../js/ai.js'
-import { createInitialBoard, cloneBoard } from '../js/pieces.js'
-import { RED, BLACK, KING, ROOK, ADVISOR, BISHOP } from '../js/constants.js'
+import { createInitialBoard } from '../js/pieces.js'
+import { RED } from '../js/constants.js'
 
 describe('AI evaluate()', () => {
   it('初始局面评分为中性附近', () => {

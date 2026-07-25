@@ -3,3 +3,17 @@ dist/
 .DS_Store
 Thumbs.db
 *.local
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+src-tauri/WixTools/
+
+# 更新签名私钥（切勿提交；公钥可进仓库）
+.tauri/*.key
+.tauri/*.key.password
+!.tauri/*.key.pub
+
+# 本地日志与 AI 工作文件
+.claude/
+*.log

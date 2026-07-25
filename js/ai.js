@@ -4,7 +4,7 @@
 // ============================================================
 import { RED, BLACK, KING, ROOK, CANNON, HORSE, BISHOP, ADVISOR, PAWN,
   COLS, ROWS, PIECE_VALUES } from './constants.js'
-import { cloneBoard, getAllMoves, isInCheck, isCheckmate } from './pieces.js'
+import { cloneBoard, getAllMoves, isInCheck } from './pieces.js'
 
 // ─── 棋子位置价值表（红方视角，row 9 = 红方底线）─────
 

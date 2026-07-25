@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createInitialBoard, cloneBoard } from '../js/pieces.js'
+import { createInitialBoard } from '../js/pieces.js'
 import { KING, ADVISOR, BISHOP, HORSE, ROOK, CANNON, PAWN, RED, BLACK, COLS, ROWS } from '../js/constants.js'
 import { boardToFEN, fenToBoard, isValidFEN, START_FEN } from '../js/fen.js'
 

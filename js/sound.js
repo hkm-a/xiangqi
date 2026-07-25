@@ -1,189 +1,288 @@
 // ============================================================
-// 象棋 - 音效：轻提示音 + 中文语音播报（Web Speech API）
-// 无需外部音频文件；系统需有中文语音包
+// 象棋 - 离线中文 TTS 播报
+// 片段由 scripts/generate-tts.mjs（node-edge-tts）预生成
+// 运行时：加速播放 + 裁静音，着法与「将军」同一队列，避免被 AI 打断
 // ============================================================
 
-import { KING, ADVISOR, BISHOP, HORSE, ROOK, CANNON, PAWN } from './constants.js'
+import { spokenPieceToken } from './notation.js'
 
-/** 棋子口语名（播报用） */
-const SPOKEN_PIECE = {
-  [KING]: '将',
-  [ADVISOR]: '士',
-  [BISHOP]: '象',
-  [HORSE]: '马',
-  [ROOK]: '车',
-  [CANNON]: '炮',
-  [PAWN]: '兵',
-}
+/** 基路径：Vite 下 public/tts → /tts */
+const TTS_BASE = `${import.meta.env?.BASE_URL || './'}tts/`
+
+/** 播放倍速（预生成已偏快，再叠一层保证干脆） */
+const PLAYBACK_RATE = 1.35
+/** 裁掉首尾低于此阈值的静音（相对峰值） */
+const SILENCE_RATIO = 0.04
+/** 片段之间的重叠/间隙（秒，负值=轻微叠读更紧凑） */
+const CLIP_GAP = -0.02
 
 export class SoundManager {
   constructor() {
     /** @type {AudioContext|null} */
     this.ctx = null
     this.enabled = true
-    this.volume = 0.35
-    /** @type {SpeechSynthesisVoice|null} */
-    this._voice = null
-    this._voicesReady = false
+    this.volume = 0.9
+    this.rate = PLAYBACK_RATE
+    /** @type {Map<string, AudioBuffer>} */
+    this._cache = new Map()
+    /** @type {AudioBufferSourceNode[]} */
+    this._playing = []
+    /** 串行队列 */
+    this._queue = Promise.resolve()
+    this._gen = 0
+    this._ready = false
+    /** 当前句是否含关键事件（将军等），未播完时新着法排队不打断 */
+    this._protectCheck = false
   }
 
-  /** 用户手势后初始化 AudioContext，并预热语音列表 */
+  /** 用户手势后初始化 AudioContext，并预热关键片段 */
   init() {
     if (!this.ctx) {
       try {
-        this.ctx = new (window.AudioContext || window.webkitAudioContext)()
+        const AC = globalThis.AudioContext || globalThis.webkitAudioContext
+          || (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext))
+        if (!AC) return
+        this.ctx = new AC()
       } catch (e) {
         console.warn('[Sound] AudioContext 不可用:', e.message)
+        return
       }
     }
-    this._loadVoices()
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {})
+    }
+    if (!this._ready) {
+      this._ready = true
+      // 仅预热最常卡顿的两句；其余按需加载，冷启动更轻
+      if (this.enabled) {
+        ;['e-jiangjun', 'e-buneng'].forEach((k) => { this._load(k).catch(() => {}) })
+      }
+    }
   }
 
   setEnabled(enabled) {
     this.enabled = enabled
-    if (!enabled) this._cancelSpeech()
+    if (!enabled) this.stop()
   }
 
   setVolume(v) {
     this.volume = Math.max(0, Math.min(1, v))
   }
 
+  /** 停止当前播放 */
+  stop() {
+    this._gen++
+    for (const src of this._playing) {
+      try { src.stop() } catch { /* noop */ }
+    }
+    this._playing = []
+  }
+
   // ─── 对外事件 ─────────────────────────────────────
 
-  /** 选子：轻音 + 棋子名 */
+  /** 选子：播报棋子名 */
   playSelect(piece) {
     if (!this.enabled) return
-    this._tick(680, 0.03, 0.1)
-    if (piece?.type) this.speak(SPOKEN_PIECE[piece.type] || '', { rate: 1.15, volume: 0.85 })
+    const tok = spokenPieceToken(piece)
+    if (tok) this._speakTokens([tok])
   }
 
   /**
-   * 走子：轻落子音 + 着法语音
-   * @param {{ text?: string, piece?: { type: string } }} info
+   * 走子 / 吃子 / 将军：同一 token 序列一次播完
+   * @param {{ tokens?: string[], check?: boolean, fallback?: string }} info
    */
   playMove(info = {}) {
     if (!this.enabled) return
-    this._tick(480, 0.05, 0.16)
-    this._tick(360, 0.04, 0.08)
-    const line = info.text || (info.piece ? SPOKEN_PIECE[info.piece.type] : '') || '走'
-    this.speak(line, { rate: 1.08, volume: 0.95 })
+    const tokens = info.tokens?.length ? [...info.tokens] : [info.fallback || 'e-zou']
+    if (info.check) tokens.push('e-jiangjun')
+    this._speakTokens(tokens)
   }
 
-  /**
-   * 吃子
-   * @param {{ text?: string, captured?: { type: string } }} info
-   */
+  /** 吃子（语义别名，默认 fallback 为 e-chi） */
   playCapture(info = {}) {
-    if (!this.enabled) return
-    this._tick(220, 0.1, 0.28)
-    setTimeout(() => this._tick(150, 0.08, 0.16), 35)
-    const name = info.captured ? SPOKEN_PIECE[info.captured.type] : ''
-    const line = info.text || (name ? `吃${name}` : '吃')
-    this.speak(line, { rate: 1.05, volume: 1 })
+    this.playMove({ ...info, fallback: info.fallback || 'e-chi' })
   }
 
-  /** 将军 */
+  /** 单独播报将军 */
   playCheck() {
     if (!this.enabled) return
-    this._tick(760, 0.06, 0.18)
-    this.speak('将军', { rate: 1.0, volume: 1, pitch: 1.05 })
+    this._speakTokens(['e-jiangjun'], { priority: true })
   }
 
-  /** 胜利 @param {string} [line] 如「红方胜」 */
+  /** 胜利 @param {string} [line] */
   playWin(line = '你赢了') {
     if (!this.enabled) return
-    ;[523, 659, 784].forEach((f, i) => setTimeout(() => this._tick(f, 0.12, 0.14), i * 120))
-    this.speak(line, { rate: 0.95, volume: 1 })
+    const tok = line.includes('红') ? 'e-hongsheng'
+      : line.includes('黑') ? 'e-heisheng'
+        : 'e-niying'
+    this._speakTokens([tok])
   }
 
   /** 失败 */
   playLose(line = '你输了') {
     if (!this.enabled) return
-    ;[400, 320].forEach((f, i) => setTimeout(() => this._tick(f, 0.14, 0.12), i * 140))
-    this.speak(line, { rate: 0.92, volume: 1 })
+    const tok = line.includes('红') ? 'e-hongsheng'
+      : line.includes('黑') ? 'e-heisheng'
+        : 'e-nishu'
+    this._speakTokens([tok])
   }
 
-  /** 和棋 */
   playDraw() {
     if (!this.enabled) return
-    this.speak('和棋', { rate: 1, volume: 0.95 })
+    this._speakTokens(['e-heqi'])
   }
 
-  /** 非法 */
   playIllegal() {
     if (!this.enabled) return
-    this._tick(160, 0.07, 0.14)
-    this.speak('不能走', { rate: 1.1, volume: 0.8 })
+    this._speakTokens(['e-buneng'])
   }
 
-  /** 新局 */
   playNewGame() {
     if (!this.enabled) return
-    this.speak('新局', { rate: 1.05, volume: 0.9 })
+    this._speakTokens(['e-xinju'])
   }
 
-  // ─── 语音 ─────────────────────────────────────────
+  // ─── 内部 ─────────────────────────────────────────
 
   /**
-   * @param {string} text
-   * @param {{ rate?: number, pitch?: number, volume?: number }} [opts]
+   * @param {string[]} tokens
+   * @param {{ priority?: boolean }} [opts]
    */
-  speak(text, opts = {}) {
-    if (!this.enabled || !text || typeof speechSynthesis === 'undefined') return
-    this._loadVoices()
-    this._cancelSpeech()
+  _speakTokens(tokens, opts = {}) {
+    if (!tokens?.length) return
+    this.init()
 
-    const u = new SpeechSynthesisUtterance(String(text))
-    u.lang = 'zh-CN'
-    u.rate = opts.rate ?? 1.05
-    u.pitch = opts.pitch ?? 1
-    u.volume = Math.max(0, Math.min(1, (opts.volume ?? 1) * Math.min(1, this.volume + 0.55)))
-    if (this._voice) u.voice = this._voice
+    const hasCheck = tokens.includes('e-jiangjun')
+    const isTerminal = tokens.some((t) =>
+      t === 'e-hongsheng' || t === 'e-heisheng' || t === 'e-niying' || t === 'e-nishu' || t === 'e-heqi')
 
-    try {
-      speechSynthesis.speak(u)
-    } catch (e) {
-      console.warn('[Sound] 语音播报失败:', e.message)
+    // 正在播「…将军」时：终局可打断；普通着法（含 AI 回手）排队等将军说完
+    if (this._protectCheck && !isTerminal && !opts.priority) {
+      this._queue = this._queue.then(() => {
+        this._protectCheck = false
+        this._speakTokens(tokens, { priority: true })
+      })
+      return
     }
+
+    const gen = ++this._gen
+    for (const src of this._playing) {
+      try { src.stop() } catch { /* noop */ }
+    }
+    this._playing = []
+    this._protectCheck = hasCheck
+
+    this._queue = Promise.resolve().then(async () => {
+      if (gen !== this._gen) return
+      for (const key of tokens) {
+        if (gen !== this._gen) return
+        try {
+          const buf = await this._load(key)
+          if (gen !== this._gen) return
+          await this._playBuffer(buf)
+        } catch (e) {
+          console.warn('[Sound] 播放失败:', key, e.message)
+        }
+      }
+      if (gen === this._gen) this._protectCheck = false
+    }).catch(() => {
+      this._protectCheck = false
+    })
   }
 
-  _cancelSpeech() {
-    try {
-      if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
-    } catch { /* noop */ }
+  /**
+   * @param {string} key
+   * @returns {Promise<AudioBuffer>}
+   */
+  async _load(key) {
+    if (this._cache.has(key)) return this._cache.get(key)
+    if (!this.ctx) this.init()
+    if (!this.ctx) throw new Error('无 AudioContext')
+
+    const url = `${TTS_BASE}${key}.mp3`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`)
+    const raw = await res.arrayBuffer()
+    let buf = await this.ctx.decodeAudioData(raw.slice(0))
+    buf = this._trimSilence(buf)
+    this._cache.set(key, buf)
+    return buf
   }
 
-  _loadVoices() {
-    if (typeof speechSynthesis === 'undefined') return
-    const pick = () => {
-      const voices = speechSynthesis.getVoices() || []
-      const zh = voices.filter((v) => /zh(-|_)?CN|Chinese|中文|普通话/i.test(`${v.lang} ${v.name}`))
-      this._voice =
-        zh.find((v) => /Xiaoxiao|Xiaoyi|Yunxi|Huihui|Yaoyao|Kangkang|Google.*Chinese|Microsoft.*Chinese/i.test(v.name)) ||
-        zh[0] ||
-        null
-      this._voicesReady = voices.length > 0
+  /**
+   * 裁掉首尾静音，缩短拼接着法总时长
+   * @param {AudioBuffer} buffer
+   * @returns {AudioBuffer}
+   */
+  _trimSilence(buffer) {
+    if (!this.ctx || buffer.length < 128) return buffer
+    const ch = buffer.getChannelData(0)
+    const n = ch.length
+    let peak = 0
+    for (let i = 0; i < n; i++) {
+      const a = Math.abs(ch[i])
+      if (a > peak) peak = a
     }
-    pick()
-    if (!this._voicesReady) {
-      speechSynthesis.addEventListener('voiceschanged', pick, { once: true })
+    if (peak < 1e-5) return buffer
+    const thr = peak * SILENCE_RATIO
+    let start = 0
+    let end = n - 1
+    while (start < n && Math.abs(ch[start]) < thr) start++
+    while (end > start && Math.abs(ch[end]) < thr) end--
+    // 保留极短淡入淡出边距
+    const pad = Math.min(64, Math.floor((end - start) * 0.02))
+    start = Math.max(0, start - pad)
+    end = Math.min(n - 1, end + pad)
+    const len = end - start + 1
+    if (len >= n * 0.92) return buffer // 几乎无静音，原样返回
+    if (len < 32) return buffer
+
+    const out = this.ctx.createBuffer(buffer.numberOfChannels, len, buffer.sampleRate)
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      out.copyToChannel(buffer.getChannelData(c).subarray(start, end + 1), c)
     }
+    return out
   }
 
-  _tick(frequency, duration, vol = 0.2) {
-    if (!this.ctx || !this.enabled) return
-    if (this.ctx.state === 'suspended') this.ctx.resume()
-    const t0 = this.ctx.currentTime
-    const osc = this.ctx.createOscillator()
-    const gain = this.ctx.createGain()
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(frequency, t0)
-    gain.gain.setValueAtTime(vol * this.volume * 0.55, t0)
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration)
-    osc.connect(gain)
-    gain.connect(this.ctx.destination)
-    osc.start(t0)
-    osc.stop(t0 + duration + 0.03)
+  /**
+   * @param {AudioBuffer} buffer
+   * @returns {Promise<void>}
+   */
+  _playBuffer(buffer) {
+    return new Promise((resolve) => {
+      if (!this.ctx || !this.enabled) {
+        resolve()
+        return
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume()
+
+      const src = this.ctx.createBufferSource()
+      const gain = this.ctx.createGain()
+      src.buffer = buffer
+      src.playbackRate.value = this.rate
+      gain.gain.value = this.volume
+      src.connect(gain)
+      gain.connect(this.ctx.destination)
+
+      this._playing.push(src)
+      // 按加速后的有效时长衔接下一片（略重叠更紧凑）
+      const durationMs = Math.max(40, (buffer.duration / this.rate + CLIP_GAP) * 1000)
+      let settled = false
+      const done = () => {
+        if (settled) return
+        settled = true
+        this._playing = this._playing.filter((s) => s !== src)
+        try { src.stop() } catch { /* 可能已结束 */ }
+        resolve()
+      }
+      src.onended = done
+      try {
+        src.start(0)
+        setTimeout(done, durationMs)
+      } catch {
+        done()
+      }
+    })
   }
 }
 

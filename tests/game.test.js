@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Game } from '../js/game.js'
-import { RED, BLACK, KING, ROOK, CANNON, HORSE, PAWN, ROWS, COLS } from '../js/constants.js'
+import { RED, BLACK, KING, ROOK, PAWN, ROWS, COLS } from '../js/constants.js'
 
 const p = (type, color) => ({ type, color })
 
@@ -114,7 +114,6 @@ describe('Game', () => {
     })
 
     it('should restore previous state after undo', () => {
-      const prevBoard = game.board.map(row => [...row])
       game.tryMove(7, 1, 7, 4)
       game.undo()
       expect(game.turn).toBe(RED)

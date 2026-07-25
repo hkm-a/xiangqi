@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "default",
+  "description": "默认窗口能力（最小权限 + 更新）",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "window-state:default",
+    "updater:default",
+    "process:default"
+  ]
+}

@@ -1,13 +1,14 @@
 // ============================================================
 // 象棋 - 游戏状态管理
 // ============================================================
-import { RED, BLACK, KING, PIECE_CHARS, ROWS, COLS } from './constants.js'
+import { RED, BLACK } from './constants.js'
 import {
   getValidMoves, isInCheck, isCheckmate, isStalemate,
-  cloneBoard, createInitialBoard,
+  createInitialBoard,
 } from './pieces.js'
-import { RepetitionDetector, zobrist } from './perpetual.js'
-import { boardToFEN, fenToBoard, fenToTurn, isValidFEN, START_FEN } from './fen.js'
+import { RepetitionDetector } from './perpetual.js'
+import { boardToFEN, fenToBoard, fenToTurn, isValidFEN } from './fen.js'
+import { formatDisplayMove, formatChineseMove } from './notation.js'
 
 /**
  * 游戏状态类
@@ -82,16 +83,12 @@ export class Game {
     const captured = this.board[toRow][toCol]
     const enemyColor = piece.color === RED ? BLACK : RED
 
-    // 记录是否将军
-    const wasCheck = isInCheck(this.board, enemyColor)
-
-    // 记录走法（用于悔棋和动画）
+    // 记录走法（用于悔棋、记谱与动画）
     this.history.push({
       from: { row: fromRow, col: fromCol },
       to: { row: toRow, col: toCol },
       piece: { ...piece },
       captured: captured ? { ...captured } : null,
-      wasCheck,
     })
 
     // 移动棋子
@@ -112,6 +109,11 @@ export class Game {
 
     // 更新状态
     this.turn = enemyColor
+    // 记录局面（走后、轮到对方时）并判定循环
+    const gaveCheck = isInCheck(this.board, enemyColor)
+    if (this.repetition) {
+      this.repetition.record(this.board, this.turn, gaveCheck)
+    }
     this.updateStatus()
   }
 
@@ -130,54 +132,43 @@ export class Game {
       this.status = null
     }
 
-    // 检测循环局面
-    if (this.status !== 'checkmate' && this.status !== 'stalemate') {
-      if (this.repetition) {
-        // 记录当前局面
-        const currentHash = zobrist.hash(this.board, this.turn)
-        const count = this.repetition.getCount(this.board, this.turn)
-
-        if (count >= 3) {
-          this.status = 'draw'
-          this.subStatus = 'threefold'
-        }
-
-        // 长将检测
-        const perpetual = this.repetition.isPerpetualCheck()
-        if (perpetual) {
-          this.status = 'checkmate' // 长将判负
-          this.subStatus = 'perpetual_check'
-        }
+    // 检测循环局面（依赖 makeMove 中的 record）
+    if (this.status !== 'checkmate' && this.status !== 'stalemate' && this.repetition) {
+      if (this.repetition.getCount(this.board, this.turn) >= 3) {
+        this.status = 'draw'
+        this.subStatus = 'threefold'
+      }
+      const perpetual = this.repetition.isPerpetualCheck()
+      if (perpetual) {
+        // 长将方判负：当前 turn 是被将方，长将方是对方
+        this.status = 'checkmate'
+        this.subStatus = 'perpetual_check'
       }
     }
   }
 
-  /** 悔棋 */
+  /**
+   * 悔棋一步（仅撤销历史中的一手）
+   * 人机「悔双方」由 UI 层连调两次，避免双重撤销
+   */
   undo() {
     if (this.history.length === 0) return false
-    // AI 模式下一次悔两步（AI 的 + 玩家的）
-    if (this.aiMode && this.history.length >= 2 && !this.aiThinking) {
-      this._undoOne()
-      this._undoOne()
-    } else {
-      this._undoOne()
-    }
+    this._undoOne()
     this.selected = null
     return true
   }
 
   /** 内部：悔一步 */
   _undoOne() {
-    // 先删除 repetition 记录
-    const toRemove = this.history[this.history.length - 1]
-    if (toRemove && this.repetition) {
-      // 模拟悔棋前的局面
-      const prevTurn = toRemove.piece.color
+    const last = this.history[this.history.length - 1]
+    if (!last) return
+
+    // 撤销走后局面的 repetition 记录（当前 board/turn 即走后状态）
+    if (this.repetition) {
       this.repetition.unrecord(this.board, this.turn)
     }
 
-    const last = this.history.pop()
-    if (!last) return
+    this.history.pop()
 
     // 恢复棋子位置
     this.board[last.from.row][last.from.col] = last.piece
@@ -199,9 +190,8 @@ export class Game {
     this.status = null
     this.subStatus = null
 
-    // 重新检查将军状态
-    const enemyColor = last.piece.color === RED ? BLACK : RED
-    if (isInCheck(this.board, enemyColor)) {
+    // 重新检查将军状态（走子方是否被将，一般否；恢复后轮到走子方）
+    if (isInCheck(this.board, this.turn)) {
       this.status = 'check'
     }
   }
@@ -211,31 +201,20 @@ export class Game {
     this.makeMove(fromRow, fromCol, toRow, toCol)
   }
 
-  /** 获取移动描述文本（用于界面显示） */
+  /** 界面记谱 */
   getMoveText(move) {
-    const piece = move.piece
-    const char = PIECE_CHARS[piece.color][piece.type]
-    const colNames = ['1','2','3','4','5','6','7','8','9']
-    const from = colNames[move.from.col] + (10 - move.from.row)
-    const to = colNames[move.to.col] + (10 - move.to.row)
-    const capture = move.captured ? '×' : '→'
-    return `${char}${from}${capture}${to}`
+    return formatDisplayMove(move)
   }
 
-  // ─── 棋盘翻转 ──────────────────────────────────────
+  /** 播报用口语与 TTS token */
+  getSpokenMove(move) {
+    return formatChineseMove(move)
+  }
 
   /** 翻转棋盘 (180°) */
   flipBoard() {
     this.flipped = !this.flipped
   }
-
-  /** 获取翻转后的棋盘坐标 */
-  getFlippedPos(row, col) {
-    if (!this.flipped) return { row, col }
-    return { row: ROWS - 1 - row, col: COLS - 1 - col }
-  }
-
-  // ─── FEN 导入/导出 ─────────────────────────────────
 
   /** 导出当前局面为 FEN */
   toFEN() {
@@ -262,21 +241,5 @@ export class Game {
     this.repetition.reset()
     this.updateStatus()
     return true
-  }
-
-  /** 获取当前 FEN (备用名) */
-  getFEN() { return this.toFEN() }
-
-  /** 加载初始局面 */
-  loadStartPosition() {
-    return this.fromFEN(START_FEN)
-  }
-
-  /** 获取胜利方 */
-  getWinner() {
-    if (this.status === 'checkmate') {
-      return this.turn === RED ? BLACK : RED
-    }
-    return null
   }
 }
