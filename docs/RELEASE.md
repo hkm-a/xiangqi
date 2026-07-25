@@ -51,13 +51,23 @@ Get-Content .tauri\xiangqi.key -Raw
 
 也可在 Actions 页 **Release → Run workflow** 手动触发。
 
-## 本地构建（可选）
+## 本地构建
+
+日常本地构建不生成 updater 签名产物，因此不需要私钥：
 
 ```bash
-# 需设置签名环境变量才有完整 updater 产物
-$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content .tauri\xiangqi.key -Raw
 npm run desktop:build
 ```
+
+需要复现完整发布构建时，再设置签名环境变量并叠加发布配置：
+
+```powershell
+# Windows PowerShell
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content .tauri\xiangqi.key -Raw
+npm run tauri -- build --config src-tauri/tauri.release.conf.json --bundles nsis
+```
+
+基础配置 `src-tauri/tauri.conf.json` 关闭 updater artifacts；GitHub Release 工作流通过 `src-tauri/tauri.release.conf.json` 显式开启，避免日常构建因缺少发布私钥失败。
 
 ## CI
 

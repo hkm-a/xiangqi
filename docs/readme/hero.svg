@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="title desc">
+  <title id="title">中国象棋</title>
+  <desc id="desc">一款本地优先的中国象棋，提供三档人工智能、中文记谱和离线语音。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#090a0d"/>
+      <stop offset="0.58" stop-color="#101014"/>
+      <stop offset="1" stop-color="#17100d"/>
+    </linearGradient>
+    <linearGradient id="board" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d8ad55"/>
+      <stop offset="1" stop-color="#b98432"/>
+    </linearGradient>
+    <pattern id="grain" width="12" height="12" patternUnits="userSpaceOnUse">
+      <path d="M0 3H12M0 9H12" stroke="#5e3d18" stroke-opacity=".08"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="480" rx="24" fill="url(#bg)"/>
+  <path d="M0 1H1200" stroke="#7a5d28" stroke-opacity=".5"/>
+  <circle cx="102" cy="78" r="94" fill="#b6252d" opacity=".07"/>
+  <circle cx="1086" cy="412" r="150" fill="#d9ad55" opacity=".045"/>
+
+  <g transform="translate(72 64)">
+    <text x="0" y="22" fill="#d9b45d" font-family="Georgia, 'Noto Serif SC', serif" font-size="15" font-weight="700" letter-spacing="5">XIANGQI · LOCAL PLAY</text>
+    <text x="0" y="105" fill="#f5e4b0" font-family="'Noto Serif SC', 'Microsoft YaHei', serif" font-size="70" font-weight="700" letter-spacing="8">中国象棋</text>
+    <rect x="2" y="130" width="60" height="3" rx="1.5" fill="#b5262f"/>
+    <rect x="72" y="130" width="124" height="3" rx="1.5" fill="#8c6a31"/>
+    <text x="0" y="176" fill="#c6bea8" font-family="'Microsoft YaHei', sans-serif" font-size="24">棋盘为主，安静地下一盘棋。</text>
+    <text x="0" y="215" fill="#817d73" font-family="'Microsoft YaHei', sans-serif" font-size="17">无需账号 · 无广告 · 浏览器与 Windows 桌面端</text>
+
+    <g transform="translate(0 258)" font-family="'Microsoft YaHei', sans-serif" font-size="16">
+      <rect width="112" height="42" rx="21" fill="#17171d" stroke="#413724"/>
+      <circle cx="23" cy="21" r="5" fill="#c72b35"/>
+      <text x="39" y="27" fill="#e0d7c4">三档 AI</text>
+
+      <rect x="126" width="128" height="42" rx="21" fill="#17171d" stroke="#413724"/>
+      <circle cx="149" cy="21" r="5" fill="#d2a64f"/>
+      <text x="165" y="27" fill="#e0d7c4">中文记谱</text>
+
+      <rect x="268" width="128" height="42" rx="21" fill="#17171d" stroke="#413724"/>
+      <circle cx="291" cy="21" r="5" fill="#d2a64f"/>
+      <text x="307" y="27" fill="#e0d7c4">离线语音</text>
+    </g>
+
+    <text x="2" y="354" fill="#6f6b61" font-family="Consolas, monospace" font-size="14">VITE 6  /  TAURI 2  /  MIT</text>
+  </g>
+
+  <g transform="translate(706 42)">
+    <rect width="422" height="396" rx="18" fill="#08090b" stroke="#4f3d1d" stroke-width="2"/>
+    <path d="M17 42V17H42M380 17H405V42M405 354V379H380M42 379H17V354" fill="none" stroke="#9a7534" stroke-width="2"/>
+    <rect x="33" y="31" width="356" height="334" rx="9" fill="url(#board)" stroke="#e2bd69" stroke-width="3"/>
+    <rect x="33" y="31" width="356" height="334" rx="9" fill="url(#grain)"/>
+
+    <g stroke="#583917" stroke-width="1.2" opacity=".82">
+      <path d="M55 52V344M94 52V344M133 52V344M172 52V344M211 52V344M250 52V344M289 52V344M328 52V344M367 52V344"/>
+      <path d="M55 52H367M55 84H367M55 116H367M55 148H367M55 180H367M55 216H367M55 248H367M55 280H367M55 312H367M55 344H367"/>
+      <path d="M172 52L250 116M250 52L172 116M172 280L250 344M250 280L172 344"/>
+    </g>
+    <rect x="54" y="179" width="314" height="38" fill="#9c6c26" fill-opacity=".78"/>
+    <text x="88" y="205" fill="#493015" font-family="'Noto Serif SC', 'Microsoft YaHei', serif" font-size="22" font-weight="700" letter-spacing="18">楚河  汉界</text>
+
+    <g font-family="'Noto Serif SC', 'Microsoft YaHei', serif" font-size="21" font-weight="700" text-anchor="middle">
+      <g fill="#ead59a" stroke="#44321d" stroke-width="3">
+        <circle cx="94" cy="84" r="22"/><circle cx="211" cy="84" r="22"/><circle cx="328" cy="84" r="22"/>
+      </g>
+      <text x="94" y="92" fill="#222226">车</text><text x="211" y="92" fill="#222226">将</text><text x="328" y="92" fill="#222226">马</text>
+      <g fill="#f1dda0" stroke="#9e2c2b" stroke-width="3">
+        <circle cx="94" cy="312" r="22"/><circle cx="211" cy="312" r="22"/><circle cx="328" cy="312" r="22"/>
+      </g>
+      <text x="94" y="320" fill="#b52028">车</text><text x="211" y="320" fill="#b52028">帅</text><text x="328" y="320" fill="#b52028">马</text>
+    </g>
+
+    <g transform="translate(354 24) rotate(8)">
+      <rect width="46" height="46" rx="8" fill="#9f1e28" stroke="#e45858"/>
+      <rect x="5" y="5" width="36" height="36" rx="5" fill="none" stroke="#f3a2a0" stroke-opacity=".58"/>
+      <text x="23" y="32" text-anchor="middle" fill="#ffe5d6" font-family="'Noto Serif SC', serif" font-size="24" font-weight="700">帅</text>
+    </g>
+  </g>
+</svg>
