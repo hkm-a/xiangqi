@@ -11,6 +11,11 @@
 | `TAURI_SIGNING_PRIVATE_KEY` | 本地 `.tauri/xiangqi.key` 的**全文**（私钥，勿泄露） |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 若生成密钥时设了密码则填写；无密码可留空或不建 |
 
+**注意**
+
+- 必须建在 **Repository secrets**（仓库密钥），不要建在 Environment secrets（环境密钥）——工作流未绑定 environment，读不到。
+- 粘贴时尽量不要多空行；CI 会自动去掉末尾换行（GitHub 常会自动加 `\n`）。
+
 公钥已写入 `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`，与 `.tauri/xiangqi.key.pub` 一致。
 
 本地查看私钥（仅本机）：

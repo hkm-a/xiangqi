@@ -44,16 +44,30 @@ jobs:
       - name: 单元测试
         run: npm test
 
-      - name: 检查更新签名私钥
+      - name: 准备更新签名私钥
         shell: bash
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           if [ -z "$KEY" ]; then
-            echo "::error::缺少 Secret TAURI_SIGNING_PRIVATE_KEY。请把本机 .tauri/xiangqi.key 全文粘贴到仓库 Secrets（见 docs/RELEASE.md）。"
+            echo "::error::缺少 Secret TAURI_SIGNING_PRIVATE_KEY。请把本机 .tauri/xiangqi.key 全文粘贴到「Repository secrets」（不要放到 Environment secrets）。"
             exit 1
           fi
-          echo "已检测到 TAURI_SIGNING_PRIVATE_KEY（长度 ${#KEY}）"
+          # GitHub Secret 常带末尾换行（ASCII 10），会导致 base64 解码失败
+          KEY_TRIMMED="$(printf '%s' "$KEY" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          if [ ${#KEY_TRIMMED} -lt 32 ]; then
+            echo "::error::私钥过短（${#KEY_TRIMMED}），请确认粘贴的是 .key 私钥而非 .pub 公钥。"
+            exit 1
+          fi
+          KEY_FILE="${RUNNER_TEMP}/tauri_signing.key"
+          # 用 printf 写入，避免再引入换行
+          printf '%s' "$KEY_TRIMMED" > "$KEY_FILE"
+          echo "TAURI_SIGNING_PRIVATE_KEY_PATH=$KEY_FILE" >> "$GITHUB_ENV"
+          if [ -n "$KEY_PASSWORD" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          fi
+          echo "签名私钥已就绪（trim 后长度 ${#KEY_TRIMMED}，使用文件路径注入）"
 
       - name: 解析版本 tag
         id: ver
@@ -72,9 +86,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 更新包签名（在仓库 Settings → Secrets 中配置）
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # 私钥通过上一步写入 TAURI_SIGNING_PRIVATE_KEY_PATH（已去换行）
         with:
           tagName: ${{ steps.ver.outputs.tag }}
           releaseName: 中國象棋 ${{ steps.ver.outputs.tag }}
