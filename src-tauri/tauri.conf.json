@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "中國象棋",
+  "productName": "Xiangqi",
   "version": "1.4.0",
   "identifier": "app.xiangqi.local",
   "build": {
