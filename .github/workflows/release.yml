@@ -45,29 +45,36 @@ jobs:
         run: npm test
 
       - name: 准备更新签名私钥
+        id: signkey
         shell: bash
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           if [ -z "$KEY" ]; then
-            echo "::error::缺少 Secret TAURI_SIGNING_PRIVATE_KEY。请把本机 .tauri/xiangqi.key 全文粘贴到「Repository secrets」（不要放到 Environment secrets）。"
+            echo "::error::缺少 Repository secret TAURI_SIGNING_PRIVATE_KEY（勿用 Environment secrets）。"
             exit 1
           fi
-          # GitHub Secret 常带末尾换行（ASCII 10），会导致 base64 解码失败
+          # 去掉换行/空白（GitHub 粘贴常带 \n，会触发 base64 Invalid symbol 10）
           KEY_TRIMMED="$(printf '%s' "$KEY" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
           if [ ${#KEY_TRIMMED} -lt 32 ]; then
-            echo "::error::私钥过短（${#KEY_TRIMMED}），请确认粘贴的是 .key 私钥而非 .pub 公钥。"
+            echo "::error::私钥过短（${#KEY_TRIMMED}），请粘贴 .key 私钥全文。"
             exit 1
           fi
+          # 同时写文件 + 输出给下一步（Tauri 优先读 TAURI_SIGNING_PRIVATE_KEY）
           KEY_FILE="${RUNNER_TEMP}/tauri_signing.key"
-          # 用 printf 写入，避免再引入换行
           printf '%s' "$KEY_TRIMMED" > "$KEY_FILE"
-          echo "TAURI_SIGNING_PRIVATE_KEY_PATH=$KEY_FILE" >> "$GITHUB_ENV"
+          echo "key_file=$KEY_FILE" >> "$GITHUB_OUTPUT"
+          {
+            echo "TAURI_SIGNING_PRIVATE_KEY<<__TAURI_KEY_EOF__"
+            printf '%s\n' "$KEY_TRIMMED"
+            echo "__TAURI_KEY_EOF__"
+            echo "TAURI_SIGNING_PRIVATE_KEY_PATH=$KEY_FILE"
+          } >> "$GITHUB_ENV"
           if [ -n "$KEY_PASSWORD" ]; then
             echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
           fi
-          echo "签名私钥已就绪（trim 后长度 ${#KEY_TRIMMED}，使用文件路径注入）"
+          echo "签名私钥已就绪（长度 ${#KEY_TRIMMED}）"
 
       - name: 解析版本 tag
         id: ver
@@ -86,7 +93,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 私钥通过上一步写入 TAURI_SIGNING_PRIVATE_KEY_PATH（已去换行）
+          # 继承 GITHUB_ENV 中的 TAURI_SIGNING_PRIVATE_KEY / _PATH
         with:
           tagName: ${{ steps.ver.outputs.tag }}
           releaseName: 中國象棋 ${{ steps.ver.outputs.tag }}
